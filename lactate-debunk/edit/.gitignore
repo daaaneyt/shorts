@@ -1,0 +1,6 @@
+src.mp4
+*.wav
+*.npy
+video_only.mp4
+prev_*.png
+__pycache__/

@@ -1,0 +1,166 @@
+{
+ "fps": 30,
+ "segments": [
+  {
+   "src": 0.56,
+   "dur_frames": 254,
+   "out": 0.0
+  },
+  {
+   "src": 9.32,
+   "dur_frames": 123,
+   "out": 8.4667
+  },
+  {
+   "src": 13.68,
+   "dur_frames": 122,
+   "out": 12.5667
+  },
+  {
+   "src": 18.3,
+   "dur_frames": 79,
+   "out": 16.6333
+  },
+  {
+   "src": 20.99,
+   "dur_frames": 79,
+   "out": 19.2667
+  },
+  {
+   "src": 23.89,
+   "dur_frames": 96,
+   "out": 21.9
+  },
+  {
+   "src": 27.16,
+   "dur_frames": 38,
+   "out": 25.1
+  },
+  {
+   "src": 28.99,
+   "dur_frames": 76,
+   "out": 26.3667
+  },
+  {
+   "src": 32.0,
+   "dur_frames": 180,
+   "out": 28.9
+  },
+  {
+   "src": 38.3,
+   "dur_frames": 104,
+   "out": 34.9
+  },
+  {
+   "src": 42.14,
+   "dur_frames": 109,
+   "out": 38.3667
+  },
+  {
+   "src": 46.06,
+   "dur_frames": 72,
+   "out": 42.0
+  },
+  {
+   "src": 52.35,
+   "dur_frames": 239,
+   "out": 44.4
+  },
+  {
+   "src": 60.78,
+   "dur_frames": 73,
+   "out": 52.3667
+  },
+  {
+   "src": 66.0,
+   "dur_frames": 58,
+   "out": 54.8
+  },
+  {
+   "src": 68.01,
+   "dur_frames": 180,
+   "out": 56.7333
+  },
+  {
+   "src": 74.23,
+   "dur_frames": 152,
+   "out": 62.7333
+  },
+  {
+   "src": 79.41,
+   "dur_frames": 58,
+   "out": 67.8
+  },
+  {
+   "src": 81.54,
+   "dur_frames": 70,
+   "out": 69.7333
+  },
+  {
+   "src": 84.11,
+   "dur_frames": 80,
+   "out": 72.0667
+  },
+  {
+   "src": 86.99,
+   "dur_frames": 43,
+   "out": 74.7333
+  },
+  {
+   "src": 88.6,
+   "dur_frames": 20,
+   "out": 76.1667
+  },
+  {
+   "src": 89.35,
+   "dur_frames": 38,
+   "out": 76.8333
+  },
+  {
+   "src": 90.77,
+   "dur_frames": 167,
+   "out": 78.1
+  },
+  {
+   "src": 101.05,
+   "dur_frames": 89,
+   "out": 83.6667
+  },
+  {
+   "src": 104.73,
+   "dur_frames": 114,
+   "out": 86.6333
+  },
+  {
+   "src": 108.61,
+   "dur_frames": 46,
+   "out": 90.4333
+  },
+  {
+   "src": 110.35,
+   "dur_frames": 129,
+   "out": 91.9667
+  },
+  {
+   "src": 114.73,
+   "dur_frames": 61,
+   "out": 96.2667
+  },
+  {
+   "src": 116.94,
+   "dur_frames": 59,
+   "out": 98.3
+  },
+  {
+   "src": 124.74,
+   "dur_frames": 164,
+   "out": 100.2667
+  },
+  {
+   "src": 130.28,
+   "dur_frames": 67,
+   "out": 105.7333
+  }
+ ],
+ "total": 107.96666666666667
+}
