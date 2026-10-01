@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sub3piece intro</title>
+<style>
+  html, body { margin: 0; background: #0C0D10; overflow: hidden; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<script>
+'use strict';
+/* sub3piece channel intro — deterministic renderer.
+ *
+ * Everything is a pure function of time t (seconds). Layout is authored on the
+ * design system's 1920×1080 video stage and rendered at ?scale= (2 → 3840×2160).
+ * render.cjs drives renderFrame(t) frame by frame; motion blur is real temporal
+ * supersampling (180° shutter), so fast moves smear the way a camera sees them.
+ *
+ * Story: a stopwatch runs a whole marathon (0:00:00 → 2:59:59, one tick under
+ * three hours) over a km ruler, then the readout is swapped for the wordmark in
+ * three horizontal pieces (trousers, waistcoat, jacket: bottom band first).
+ */
+
+// ---------- sub3piece tokens (design system: tokens/colors.css) ----------
+const C = {
+  ink: '#0C0D10', line: '#26282E', paper: '#F1F0EC',
+  graphite: '#8A8B90', graphite2: '#6E7077', graphite3: '#4A4C53',
+  signal: '#FF5A2C',
+};
+const ZONES = [ // functional zone palette: data only
+  { km: 0,  id: 'Z2', name: 'TRAIN', color: '#378ADD' },
+  { km: 3,  id: 'Z3', name: 'TEMPO', color: '#EF9F27' },
+  { km: 32, id: 'Z4', name: 'RACE',  color: '#FF5A2C' },
+  { km: 41, id: 'Z5', name: 'MAX',   color: '#E24B4A' },
+];
+const DISPLAY = "'Space Grotesk'", MONO = "'Space Mono'";
+
+// ---------- stage ----------
+const W = 1920, H = 1080;
+const Q = new URLSearchParams(location.search);
+const S = +(Q.get('scale') || 2);
+const PW = Math.round(W * S), PH = Math.round(H * S);
+const cv = document.getElementById('stage');
+cv.width = PW; cv.height = PH;
+const cx0 = cv.getContext('2d', { willReadFrequently: true, alpha: false });
+
+// ---------- easing (tokens/spacing.css) ----------
+function cubicBezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = s => ((ax * s + bx) * s + cx) * s, Y = s => ((ay * s + by) * s + cy) * s;
+  return x => {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    let lo = 0, hi = 1, s = x;
+    for (let i = 0; i < 40; i++) { s = (lo + hi) / 2; if (X(s) < x) lo = s; else hi = s; }
+    return Y(s);
+  };
+}
+const easeOut = cubicBezier(0.2, 0, 0, 1);       // --ease-out
+const easeInOut = cubicBezier(0.65, 0, 0.35, 1); // --ease-in-out
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, t0, t1) => clamp((t - t0) / (t1 - t0));
+const lerp = (a, b, u) => a + (b - a) * u;
+function mixHex(a, b, u) {
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const A = p(a), B = p(b);
+  return `rgb(${A.map((v, i) => Math.round(lerp(v, B[i], u))).join(',')})`;
+}
+
+// ---------- timeline (150 BPM grid: beat 0.4 s, 8th 0.2 s) ----------
+const T = {
+  gridIn: [0.06, 0.70], lineIn: [0.10, 0.56], playIn: [0.12, 0.36], rulesIn: [0.16, 0.64],
+  labelsIn: 0.26, readoutIn: 0.40, rulerIn: [0.46, 0.80],
+  start: 0.80, fastEnd: 2.00, stop: 2.80,
+  rulerOut: [2.96, 3.30], playOut: [3.26, 3.50],
+  finishFlash: [2.80, 3.22],
+  bands: [[3.56, 3.80], [3.36, 3.60], [3.16, 3.40]], // [top, mid, bottom]: bottom locks first
+  contract: [3.44, 3.96], tickColor: [3.62, 3.94], tickGrow: [3.72, 3.98],
+  logo: 4.00, tagline: 4.00, footerSwap: 4.04,
+  exit: [5.20, 5.60], end: 5.60,
+};
+
+// ---------- the race clock ----------
+// 0:00:00 → 2:59:55 by T.fastEnd on a log-speed bell (starts and ends at 5
+// race-seconds per second), then four clean ticks on 8ths to 2:59:59 at T.stop.
+const RACE_END = 10799, RACE_FAST = 10795, V0 = 5, DT = 1e-4;
+function bell(u) {
+  const a = 0.30, b = 0.44, s = x => x * x * (3 - 2 * x);
+  if (u <= 0 || u >= 1) return 0;
+  if (u < a) return s(u / a);
+  if (u > 1 - b) return s((1 - u) / b);
+  return 1;
+}
+function integrate(A, keep) {
+  const n = Math.round((T.fastEnd - T.start) / DT);
+  const tab = keep ? new Float64Array(n + 1) : null;
+  let r = 0, vPrev = V0;
+  for (let i = 0; i < n; i++) {
+    const v = V0 * Math.exp(A * bell((i + 1) / n));
+    if (tab) tab[i] = r;
+    r += 0.5 * (vPrev + v) * DT; vPrev = v;
+  }
+  if (tab) tab[n] = r;
+  return keep ? tab : r;
+}
+let lo = 0, hi = 20;
+for (let k = 0; k < 50; k++) { const m = (lo + hi) / 2; if (integrate(m) < RACE_FAST) lo = m; else hi = m; }
+const RACE_A = (lo + hi) / 2;
+const TAB = integrate(RACE_A, true);
+{ const k = RACE_FAST / TAB[TAB.length - 1]; for (let i = 0; i < TAB.length; i++) TAB[i] *= k; }
+
+function race(t) {
+  if (t <= T.start) return 0;
+  if (t < T.fastEnd) {
+    const x = (t - T.start) / DT, i = Math.floor(x), f = x - i;
+    return TAB[i] + (TAB[Math.min(i + 1, TAB.length - 1)] - TAB[i]) * f;
+  }
+  if (t < T.stop) return RACE_FAST + V0 * (t - T.fastEnd);
+  return RACE_END;
+}
+function tAtRace(r) { // inverse of race(t) on [start, stop]
+  let a = T.start, b = T.stop;
+  for (let i = 0; i < 48; i++) { const m = (a + b) / 2; if (race(m) < r) a = m; else b = m; }
+  return b;
+}
+const MARATHON = 42.195;
+const dist = t => MARATHON * race(t) / RACE_END;
+
+// ---------- layout ----------
+const CX = 960;
+const MARGIN = 120;                   // 2 grid cells
+const RULE_TOP = 120, RULE_BOT = 960;
+const LINE_Y = 660;                   // start / finish line (on the 60px grid)
+const BASE_Y = 570;                   // readout + wordmark baseline
+const WM_SIZE = 216, RO_SIZE = 232;
+const WIN_TOP = 395, WIN_BOT = 623;   // band region
+const REEL_TOP = 330, REEL_BOT = 652; // reel drum window (soft edges)
+const BAND_Y = [WIN_TOP, WIN_TOP + (WIN_BOT - WIN_TOP) / 3, WIN_TOP + 2 * (WIN_BOT - WIN_TOP) / 3, WIN_BOT];
+const TAPE = 1560;                    // readout → wordmark tape distance
+const PPK = 240;                      // ruler px per km
+const PITCH = 262;                    // reel pitch
+const LABEL = 22, TRACK = 0.2;        // corner labels (Space Mono)
+
+let WM, RO; // measured layouts
+let ctx = cx0;
+function layout() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.letterSpacing = '0px';
+  ctx.font = `700 ${WM_SIZE}px ${DISPLAY}`;
+  const s = 'sub3piece', tr = -0.04 * WM_SIZE, xs = [];
+  for (let i = 0; i < s.length; i++)
+    xs.push(ctx.measureText(s.slice(0, i + 1)).width - ctx.measureText(s[i]).width + i * tr);
+  const total = ctx.measureText(s).width + (s.length - 1) * tr;
+  WM = { s, xs, x0: CX - total / 2, total };
+
+  ctx.font = `700 ${RO_SIZE}px ${MONO}`;
+  const cw = ctx.measureText('0').width, colw = 0.36 * RO_SIZE;
+  const kinds = ['d', ':', 'd', 'd', ':', 'd', 'd'];
+  const width = 5 * cw + 2 * colw;
+  let x = CX - width / 2; const cells = [];
+  for (const k of kinds) { const w = k === 'd' ? cw : colw; cells.push({ k, x: x + w / 2 }); x += w; }
+  const dm = ctx.measureText('0'), cm = ctx.measureText(':');
+  const colonLift = dm.actualBoundingBoxAscent / 2 - (cm.actualBoundingBoxAscent - cm.actualBoundingBoxDescent) / 2;
+  RO = { cells, cw, width, colonLift };
+}
+
+// ---------- background: ink + dithered vignette (+ grid) ----------
+let BG, BG_GRID;
+function buildBackground() {
+  const mk = grid => {
+    const c = document.createElement('canvas'); c.width = PW; c.height = PH;
+    const g = c.getContext('2d'); const img = g.createImageData(PW, PH); const d = img.data;
+    const ink = [12, 13, 16], step = Math.round(60 * S);
+    let seed = 1234567;
+    const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; };
+    for (let y = 0; y < PH; y++) {
+      const dy = (y / PH - 0.4) / 1.2;
+      for (let x = 0; x < PW; x++) {
+        const dx = (x / PW - 0.5) / 1.2;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        const va = 0.55 * clamp((r - 0.45) / 0.55);          // banner .vig
+        const onGrid = grid && (x % step === 0 || y % step === 0);
+        const i = (y * PW + x) * 4;
+        for (let ch = 0; ch < 3; ch++) {
+          let v = ink[ch];
+          if (onGrid) v = v + (255 - v) * 0.042;              // banner .grid
+          v = v * (1 - va) + rnd() - 0.5;
+          d[i + ch] = Math.round(v);
+        }
+        d[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  };
+  BG = mk(false); BG_GRID = mk(true);
+}
+
+// ---------- text helpers ----------
+function monoCell(size, track = TRACK) { return 0.6117 * size + track * size; }
+// draw a mono label char by char; per-char alpha from fn(i) (typewriter)
+function monoText(str, x, y, size, color, align, alphaFn, track = TRACK) {
+  ctx.font = `400 ${size}px ${MONO}`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const cell = monoCell(size, track), w = str.length * cell - track * size;
+  let x0 = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
+  for (let i = 0; i < str.length; i++) {
+    const a = alphaFn ? alphaFn(i) : 1;
+    if (a <= 0 || str[i] === ' ') continue;
+    ctx.globalAlpha = a; ctx.fillStyle = Array.isArray(color) ? color[i] : color;
+    ctx.fillText(str[i], x0 + i * cell, y);
+  }
+  ctx.globalAlpha = 1;
+  return { x0, w };
+}
+const typeOn = (t, t0, per = 0.016, dur = 0.06) => i => easeOut(seg(t, t0 + i * per, t0 + i * per + dur));
+
+// roll one label into another, char by char (old exits up, new enters from below)
+function monoRoll(from, to, x, y, size, colFrom, colTo, align, t, t0) {
+  const n = Math.max(from.length, to.length);
+  const pad = s => align === 'right' ? s.padStart(n) : s.padEnd(n);
+  const A = pad(from), B = pad(to);
+  const cell = monoCell(size), w = n * cell - TRACK * size;
+  const x0 = align === 'right' ? x - w : x;
+  const lh = size * 1.25;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x0 - 4, y - size * 0.95, w + 8, size * 1.25); ctx.clip();
+  ctx.font = `400 ${size}px ${MONO}`; ctx.textAlign = 'left';
+  for (let i = 0; i < n; i++) {
+    const k = align === 'right' ? n - 1 - i : i;
+    const f = easeOut(seg(t, t0 + k * 0.012, t0 + k * 0.012 + 0.16));
+    if (A[i] !== ' ' && f < 1) { ctx.fillStyle = colFrom; ctx.fillText(A[i], x0 + i * cell, y - f * lh); }
+    if (B[i] !== ' ' && f > 0) { ctx.fillStyle = colTo; ctx.fillText(B[i], x0 + i * cell, y + (1 - f) * lh); }
+  }
+  ctx.restore();
+}
+
+// ---------- reels (odometer digits) ----------
+const UNITS = [3600, 600, 60, 10, 1], BASES = [10, 6, 10, 6, 10];
+const ROLL = 0.09; // seconds per digit snap
+// Each crossing snaps the drum on by one digit. When crossings come faster than
+// a snap, the roll is stretched to reach the next crossing, so a fast drum spins
+// continuously (and blurs into streaks) instead of flickering.
+function reelPos(k, t) {
+  const r = race(t), U = UNITS[k];
+  const n = Math.floor(r / U + 1e-9);
+  if (n === 0) return 0;
+  const tc = tAtRace(n * U);
+  const tn = (n + 1) * U <= RACE_END ? tAtRace((n + 1) * U) : Infinity;
+  return n - 1 + easeOut(seg(t, tc, tc + Math.min(ROLL, tn - tc)));
+}
+
+// ---------- scene pieces ----------
+function zoneIndex(d) { let z = 0; for (let i = 0; i < ZONES.length; i++) if (d >= ZONES[i].km) z = i; return z; }
+
+function drawFrameChrome(t) {
+  // rules draw left → right
+  const ru = easeOut(seg(t, ...T.rulesIn));
+  ctx.fillStyle = C.line;
+  ctx.fillRect(MARGIN, RULE_TOP, (W - 2 * MARGIN) * ru, 1);
+  ctx.fillRect(W - MARGIN - (W - 2 * MARGIN) * ru, RULE_BOT, (W - 2 * MARGIN) * ru, 1);
+
+  const yTop = RULE_TOP - 26, yBot = RULE_BOT + 40;
+  monoText('LONDON MARATHON 2027', MARGIN, yTop, LABEL, C.graphite, 'left', typeOn(t, T.labelsIn));
+  const tr = 'TARGET  SUB 3:00:00';
+  monoText(tr, W - MARGIN, yTop, LABEL, [...tr].map((c, i) => i < 6 ? C.graphite : C.paper), 'right', typeOn(t, T.labelsIn + 0.05));
+
+  // bottom-left: live effort zone → handle
+  const d = dist(t), zi = zoneIndex(d), z = ZONES[zi];
+  const zl = z => `${z.id}  ${z.name}`;
+  const zCols = s => [...s].map((c, i) => i < 2 ? C.paper : C.graphite);
+  if (t < T.footerSwap) {
+    let label = zl(z);
+    const zt = zi > 0 ? tAtRace(ZONES[zi].km / MARATHON * RACE_END) : -1;
+    if (zi > 0 && t < zt + 0.4) {
+      monoRoll(zl(ZONES[zi - 1]), label, MARGIN, yBot, LABEL, C.paper, C.paper, 'left', t, zt);
+    } else monoText(label, MARGIN, yBot, LABEL, zCols(label), 'left', typeOn(t, T.labelsIn + 0.1));
+    const sw = easeOut(seg(t, T.labelsIn + 0.1, T.labelsIn + 0.2));
+    const prev = zi > 0 ? ZONES[zi - 1].color : z.color;
+    const zu = zi > 0 ? easeOut(seg(t, zt, zt + 0.12)) : 1;
+    ctx.globalAlpha = sw; ctx.fillStyle = mixHex(prev, z.color, zu);
+    ctx.fillRect(MARGIN - 26, yBot - 14, 12, 12); ctx.globalAlpha = 1;
+  } else {
+    const f = 1 - easeOut(seg(t, T.footerSwap, T.footerSwap + 0.14));
+    ctx.globalAlpha = f; ctx.fillStyle = ZONES[3].color;
+    ctx.fillRect(MARGIN - 26, yBot - 14 + (1 - f) * -10, 12, 12 * f); ctx.globalAlpha = 1;
+    monoRoll(zl(ZONES[3]), '@sub3piece', MARGIN, yBot, LABEL, C.paper, C.graphite, 'left', t, T.footerSwap);
+  }
+
+  // bottom-right: live distance → the cycle
+  const ds = `DIST  ${d.toFixed(3).padStart(6, '0')} KM`;
+  if (t < T.footerSwap) {
+    monoText(ds, W - MARGIN, yBot, LABEL, [...ds].map((c, i) => (i >= 6 && i < 12) ? C.paper : C.graphite), 'right', typeOn(t, T.labelsIn + 0.15));
+  } else {
+    monoRoll(ds, 'TRAIN · RACE · RECOVER · REPEAT', W - MARGIN, yBot, LABEL, C.graphite, C.graphite, 'right', t, T.footerSwap + 0.06);
+  }
+}
+
+function drawLineAndRuler(t) {
+  const d = dist(t);
+  const rulerA = easeOut(seg(t, ...T.rulerIn)) * (1 - easeInOut(seg(t, ...T.rulerOut)));
+  const slide = (1 - easeOut(seg(t, ...T.rulerIn))) * 160;
+  const xAt = k => CX + (k - d) * PPK + slide;
+
+  // hairline: draws out from the centre, later contracts into the brand tick
+  const grow = easeOut(seg(t, ...T.lineIn));
+  const con = easeInOut(seg(t, ...T.contract));
+  const hw = lerp(CX * grow, 60, con);
+  const th = lerp(1, 8, easeOut(seg(t, ...T.tickGrow)));
+  const col = mixHex(C.graphite3, C.signal, easeInOut(seg(t, ...T.tickColor)));
+  ctx.fillStyle = col;
+  ctx.fillRect(CX - hw, LINE_Y - th / 2 + 0.5 * (th === 1), hw * 2, th);
+
+  if (rulerA > 0) {
+    ctx.globalAlpha = rulerA;
+    // zone trace: the run so far, left of the playhead
+    for (let i = 0; i < ZONES.length; i++) {
+      const k0 = ZONES[i].km, k1 = i + 1 < ZONES.length ? ZONES[i + 1].km : MARATHON;
+      const a = Math.max(xAt(k0), 0), b = Math.min(xAt(Math.min(k1, d)), CX);
+      if (b > a) { ctx.fillStyle = ZONES[i].color; ctx.fillRect(a, LINE_Y - 1.5, b - a, 3); }
+    }
+    // ticks every 100 m; within one blur sample they smear by their own travel
+    const smear = SUB_DT ? Math.abs(dist(t + SUB_DT / 2) - dist(t - SUB_DT / 2)) * PPK : 0;
+    const labelA = 1 / (1 + smear / 2);
+    const kA = Math.max(0, Math.floor((d - 4.4) * 10)), kB = Math.min(421, Math.ceil((d + 4.4) * 10));
+    ctx.font = `400 15px ${MONO}`; ctx.textAlign = 'center';
+    for (let k = kA; k <= kB; k++) {
+      const x = xAt(k / 10);
+      if (x < -40 || x > W + 40) continue;
+      const major = k % 10 === 0, half = k % 5 === 0;
+      ctx.fillStyle = major ? C.graphite : C.graphite3;
+      ctx.globalAlpha = rulerA / (1 + smear);
+      ctx.fillRect(x - 0.5 - smear / 2, LINE_Y + 2, 1 + smear, major ? 16 : half ? 9 : 5);
+      if (major && MARATHON - k / 10 > 0.4) { ctx.globalAlpha = rulerA * labelA; ctx.fillStyle = C.graphite2; ctx.fillText(String(k / 10), x, LINE_Y + 40); }
+      ctx.globalAlpha = rulerA;
+    }
+    // start / finish markers
+    for (const [k, txt, side] of [[0, 'START', 1], [MARATHON, 'FINISH', -1]]) {
+      const x = xAt(k);
+      if (x < -200 || x > W + 200) continue;
+      ctx.fillStyle = C.paper; ctx.fillRect(x - 0.75, LINE_Y - 22, 1.5, 44);
+      monoText(txt, x + side * 12, LINE_Y - 12, 14, C.paper, side > 0 ? 'left' : 'right');
+      if (k === MARATHON) { ctx.font = `400 15px ${MONO}`; ctx.textAlign = 'center'; ctx.fillStyle = C.paper; ctx.fillText('42.195', x, LINE_Y + 40); }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // photo-finish: the playhead becomes a full-height line on the stop
+  if (t >= T.finishFlash[0]) {
+    const e = easeOut(seg(t, T.finishFlash[0], T.finishFlash[0] + 0.07));
+    const a = 1 - easeInOut(seg(t, T.finishFlash[0] + 0.05, T.finishFlash[1]));
+    if (a > 0) {
+      ctx.globalAlpha = a; ctx.fillStyle = C.signal;
+      ctx.fillRect(CX - 1, lerp(LINE_Y, RULE_TOP + 1, e), 2, lerp(0, RULE_BOT - RULE_TOP - 1, e));
+      ctx.globalAlpha = 1;
+    }
+  }
+  // playhead
+  const ph = easeOut(seg(t, ...T.playIn)) * (1 - easeInOut(seg(t, ...T.playOut)));
+  if (ph > 0) { ctx.fillStyle = C.signal; ctx.fillRect(CX - 1, LINE_Y - 28 * ph, 2, 56 * ph); }
+}
+
+// readout is drawn once per sample into a drum layer whose top and bottom fade,
+// so rolling digits turn away like a reel instead of hitting a hard edge
+let RL, rl, RL_X;
+function buildReelLayer() {
+  RL_X = CX - RO.width / 2 - 30;
+  RL = document.createElement('canvas');
+  RL.width = Math.ceil((RO.width + 60) * S); RL.height = Math.ceil((REEL_BOT - REEL_TOP) * S);
+  rl = RL.getContext('2d');
+}
+function renderReadout(t) {
+  rl.setTransform(1, 0, 0, 1, 0, 0);
+  rl.globalCompositeOperation = 'source-over';
+  rl.clearRect(0, 0, RL.width, RL.height);
+  rl.setTransform(S, 0, 0, S, -RL_X * S, -REEL_TOP * S);
+  const c = ctx; ctx = rl; drawReadout(t, 0); ctx = c;
+  rl.setTransform(1, 0, 0, 1, 0, 0);
+  rl.globalCompositeOperation = 'destination-in';
+  const g = rl.createLinearGradient(0, 0, 0, RL.height), hgt = REEL_BOT - REEL_TOP;
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop((400 - REEL_TOP) / hgt, 'rgba(0,0,0,1)');
+  g.addColorStop((578 - REEL_TOP) / hgt, 'rgba(0,0,0,1)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  rl.fillStyle = g; rl.fillRect(0, 0, RL.width, RL.height);
+  rl.globalCompositeOperation = 'source-over';
+}
+function drawReadout(t, dx) {
+  const digitsAt = [0, 2, 3, 5, 6]; // cell indices of H, M, M, S, S
+  ctx.font = `700 ${RO_SIZE}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  for (let k = 0; k < 5; k++) {
+    const cell = RO.cells[digitsAt[k]];
+    const intro = 1 - easeOut(seg(t, T.readoutIn + k * 0.035, T.readoutIn + k * 0.035 + 0.28));
+    if (intro >= 1) continue;
+    const pos = reelPos(k, t), n = Math.floor(pos), f = pos - n, B = BASES[k];
+    const y0 = BASE_Y - f * PITCH + intro * PITCH;
+    ctx.fillStyle = C.paper;
+    ctx.fillText(String(((n % B) + B) % B), cell.x + dx, y0);
+    if (f > 0) ctx.fillText(String((n + 1) % B), cell.x + dx, y0 + PITCH);
+  }
+  for (const i of [1, 4]) {
+    const a = easeOut(seg(t, T.readoutIn + 0.05, T.readoutIn + 0.3));
+    ctx.globalAlpha = a; ctx.fillStyle = C.graphite;
+    ctx.fillText(':', RO.cells[i].x + dx, BASE_Y - RO.colonLift);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawWordmark(dx) {
+  ctx.font = `700 ${WM_SIZE}px ${DISPLAY}`; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  for (let i = 0; i < WM.s.length; i++) {
+    ctx.fillStyle = i === 3 ? C.signal : C.paper;
+    ctx.fillText(WM.s[i], WM.x0 + WM.xs[i] + dx, BASE_Y);
+  }
+}
+
+const bandOff = (i, t) => -TAPE * easeInOut(seg(t, ...T.bands[i]));
+
+function drawCentre(t) {
+  const offs = [0, 1, 2].map(i => bandOff(i, t));
+  if (t >= T.readoutIn) renderReadout(t);
+  const whole = offs.every(o => o === 0);
+  if (whole && t >= T.readoutIn) {
+    ctx.drawImage(RL, RL_X, REEL_TOP, RL.width / S, RL.height / S);
+    return;
+  }
+  for (let i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, BAND_Y[i], W, BAND_Y[i + 1] - BAND_Y[i] + (i < 2 ? 0.01 : 0)); ctx.clip();
+    if (offs[i] > -TAPE + RO.width / 2 - CX - 10) ctx.drawImage(RL, RL_X + offs[i], REEL_TOP, RL.width / S, RL.height / S);
+    if (offs[i] + TAPE - WM.total / 2 < CX + 10) drawWordmark(offs[i] + TAPE);
+    ctx.restore();
+  }
+  // the cuts between pieces, visible only while the pieces disagree
+  ctx.fillStyle = C.ink;
+  for (let i = 1; i < 3; i++) {
+    const a = clamp(Math.abs(offs[i - 1] - offs[i]) / 24);
+    if (a > 0) { ctx.globalAlpha = a; ctx.fillRect(0, BAND_Y[i] - 1.5, W, 3); }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawTagline(t) {
+  const s = 'the fastest marathon in a three-piece suit';
+  monoText(s, CX, LINE_Y + 64, 22, C.graphite, 'center', typeOn(t, T.tagline, 0.009, 0.08), 0.14);
+}
+
+function drawScene(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(BG, 0, 0);
+  const g = easeOut(seg(t, ...T.gridIn));
+  if (g > 0) { ctx.globalAlpha = g; ctx.drawImage(BG_GRID, 0, 0); ctx.globalAlpha = 1; }
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  ctx.letterSpacing = '0px';
+  drawFrameChrome(t);
+  drawLineAndRuler(t);
+  drawCentre(t);
+  if (t >= T.tagline) drawTagline(t);
+  const e = easeInOut(seg(t, ...T.exit));
+  if (e > 0) { ctx.globalAlpha = e; ctx.fillStyle = C.ink; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+
+// ---------- motion blur ----------
+function motion(t, h) { // largest on-screen displacement across the shutter, in device px
+  const a = t - h, b = t + h; let m = 0;
+  m = Math.max(m, Math.abs(dist(b) - dist(a)) * PPK);
+  for (let i = 0; i < 3; i++) m = Math.max(m, Math.abs(bandOff(i, b) - bandOff(i, a)));
+  const hw = u => lerp(CX * easeOut(seg(u, ...T.lineIn)), 60, easeInOut(seg(u, ...T.contract)));
+  m = Math.max(m, Math.abs(hw(b) - hw(a)));
+  for (let k = 0; k < 5; k++) {
+    const ia = easeOut(seg(a, T.readoutIn + k * 0.035, T.readoutIn + k * 0.035 + 0.28));
+    const ib = easeOut(seg(b, T.readoutIn + k * 0.035, T.readoutIn + k * 0.035 + 0.28));
+    const dp = Math.min(10, Math.abs(reelPos(k, b) - reelPos(k, a)) + Math.abs(ib - ia));
+    m = Math.max(m, dp * PITCH);
+  }
+  m = Math.max(m, (easeOut(seg(b, ...T.rulerIn)) - easeOut(seg(a, ...T.rulerIn))) * 160);
+  return m * S;
+}
+
+let ACC = null;
+let SUB_DT = 0; // duration covered by one blur sample (0 = no blur)
+function renderFrame(t, fps, shutter = 0.5, maxSamples = 64) {
+  const h = shutter / fps / 2;
+  const n = Math.max(1, Math.min(maxSamples, Math.ceil(motion(t, h) / 4)));
+  SUB_DT = 2 * h / n;
+  if (n === 1) { SUB_DT = 0; drawScene(t); return 1; }
+  if (!ACC) ACC = new Uint16Array(PW * PH * 4);
+  ACC.fill(0);
+  for (let k = 0; k < n; k++) {
+    drawScene(t - h + (k + 0.5) / n * 2 * h);
+    const d = ctx.getImageData(0, 0, PW, PH).data;
+    for (let i = 0; i < d.length; i++) ACC[i] += d[i];
+  }
+  const img = ctx.createImageData(PW, PH), o = img.data;
+  let seed = (Math.round(t * 1000) * 2654435761) >>> 0 || 1;
+  for (let i = 0; i < o.length; i += 4) {
+    seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+    const dz = (seed >>> 0) / 4294967296 - 0.5;
+    o[i] = ACC[i] / n + dz; o[i + 1] = ACC[i + 1] / n + dz; o[i + 2] = ACC[i + 2] / n + dz; o[i + 3] = 255;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.putImageData(img, 0, 0);
+  return n;
+}
+
+// ---------- events for the sound design ----------
+function exportEvents() {
+  const secTicks = [];
+  for (let r = 1; r <= RACE_END; r++) secTicks.push(+tAtRace(r).toFixed(6));
+  const kmTicks = [];
+  for (let k = 1; k <= 42; k++) kmTicks.push(+tAtRace(k / MARATHON * RACE_END).toFixed(6));
+  const zoneTimes = ZONES.slice(1).map(z => +tAtRace(z.km / MARATHON * RACE_END).toFixed(6));
+  const speed = []; // race-seconds per second, 1 ms grid
+  for (let i = 0; i <= Math.round(T.end * 1000); i++) {
+    const t = i / 1000; speed.push(+((race(t + 5e-4) - race(t - 5e-4)) / 1e-3).toFixed(3));
+  }
+  return { T, secTicks, kmTicks, zoneTimes, speed, raceA: RACE_A };
+}
+
+// ---------- boot ----------
+window.ready = (async () => {
+  const faces = [
+    [DISPLAY, 'fonts/SpaceGrotesk-Variable.ttf', { weight: '300 700' }],
+    [MONO, 'fonts/SpaceMono-Regular.ttf', { weight: '400' }],
+    [MONO, 'fonts/SpaceMono-Bold.ttf', { weight: '700' }],
+  ];
+  for (const [f, u, d] of faces) { const ff = new FontFace(f.replace(/'/g, ''), `url(${u})`, d); await ff.load(); document.fonts.add(ff); }
+  layout();
+  buildReelLayer();
+  buildBackground();
+  drawScene(+(Q.get('t') || 0));
+  return { PW, PH, duration: T.end, raceA: RACE_A };
+})();
+</script>
+</body>
+</html>
