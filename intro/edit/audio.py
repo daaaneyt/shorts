@@ -7,11 +7,13 @@ own soft-clip, then one bus compressor keyed from the whole mix rides all stems
 by the same gain, and one loudness gain takes the mix to -14 LUFS. So the stems
 at 0 dB sum exactly to the mix before its final peak limiter.
 
-Writes stems/NN_name.wav (24-bit) and mix_full.wav (float, pre-limiter).
+Writes stems/NN_name.wav (24-bit), mix_full.wav (float, pre-limiter), and three
+alternative bass lines in stems/bass-alternates/ (drop-in swaps for 04_bass; see
+the end of this file), with a preview mix of each in preview_bass-*.wav.
   python3 audio.py              # v2: end card held one extra bar (1.6 s)
   python3 audio.py --hold 0     # v1 timing
 """
-import argparse, json, os, subprocess
+import argparse, json, os, shutil, subprocess
 import numpy as np, soundfile as sf
 from scipy.signal import butter, fftconvolve, sosfilt
 
@@ -52,9 +54,11 @@ STEMS = ["kick", "clap", "hats", "bass", "synth-stabs",
          "paper-rips", "paper-slaps", "clock-ticks", "whooshes-riser", "impact"]
 MUSIC = STEMS[:5]
 bus = {name: np.zeros((N + SR, 2)) for name in STEMS}
+hits = {name: [] for name in STEMS}
 
 
 def add(stem, sig, at, gain=1.0, pan=0.0):
+    hits[stem].append(at)
     x = bus[stem]
     i = int(at * SR)
     if sig.ndim == 1:
@@ -287,9 +291,8 @@ lufs = float(json.loads(meas[meas.index("{"):meas.rindex("}") + 1])["input_i"])
 g = 10 ** ((-14 - lufs) / 20)
 os.remove("mix_probe.wav")
 
-os.makedirs("stems", exist_ok=True)
-for f in os.listdir("stems"):
-    os.remove(os.path.join("stems", f))
+shutil.rmtree("stems", ignore_errors=True)
+os.makedirs("stems/bass-alternates")
 peaks = {}
 for i, name in enumerate(STEMS, 1):
     y = st[name] * g
@@ -299,3 +302,171 @@ sf.write("mix_full.wav", (mix * g).astype(np.float32), SR, subtype="FLOAT")
 print(f"mix measured {lufs:.1f} LUFS -> gain {20 * np.log10(g):+.1f} dB; "
       f"mix peak {20 * np.log10(np.abs(mix * g).max()):.1f} dBFS before the limiter")
 print("stem peaks (dBFS): " + ", ".join(f"{k} {v:.1f}" for k, v in peaks.items()))
+
+
+# ---------------------------------------------------------------------------- alternative bass lines
+# Drop-in swaps for 04_bass. Same arrangement as the original (in under the run from 0.8, out for the
+# digits, back for the end card, plus a note on the final hit), but on a real progression: E for the
+# run, C-D into rip 2, then E E C G .. D on the end card resolving to E. Each one is printed through
+# exactly the bass stem's chain with the compressor and loudness gains frozen from the mix above, so
+# the other nine stems and the mix don't move, and it's level-matched to the original bass stem.
+SEMI = {"E": 0, "G": 3, "A": 5, "C": -4, "D": -2}
+E2 = 82.41
+S16 = BEAT / 4
+
+
+def plan():
+    """(start, end, note) for every half-bar-ish harmony slot, the last one being the final hit."""
+    out = [(0.8, 1.6, "E"), (1.6, 2.4, "E"), (2.4, 2.8, "C"), (2.8, 3.2, "D"), (3.2, 4.0, "E")]
+    end = 7.6 + H
+    starts = np.arange(5.6, end - 1e-6, 0.8)
+    for i, st_ in enumerate(starts):
+        out.append((st_, min(st_ + 0.8, end), ["E", "E", "C", "G"][i % 4] if i < len(starts) - 1 else "D"))
+    return out[:], (end, end + 0.8, "E")
+
+
+def place(x, sig, at):
+    i = int(round(at * SR))
+    n = min(len(sig), len(x) - i)
+    if n > 0:
+        x[i:i + n] += sig[:n]
+
+
+def gate(d, a=0.003, r=0.008):
+    t = t_(d)
+    return np.minimum(1, t / a) * np.clip((d - t) / r, 0, 1)
+
+
+def alt_rolling():
+    """Octave-bouncing 8ths (low on the beat, high off it): a pluck with a fast filter snap and a sub
+    under the low notes. Drives along like a running cadence."""
+    x = np.zeros(N + SR)
+    slots, last = plan()
+    for s0, s1, n in slots:
+        f = E2 * 2 ** (SEMI[n] / 12)
+        t0 = s0
+        while t0 < s1 - 1e-6:
+            hi = int(round(t0 / (BEAT / 2))) % 2 == 1
+            d = 0.17
+            t = t_(d)
+            fr = f * (2 if hi else 1)
+            ph = fr * t
+            osc = 0.6 * (2 * (ph % 1) - 1) + 0.5 * np.tanh(3 * np.sin(2 * np.pi * ph))
+            sig = lp(osc, 1800) * np.exp(-t / 0.035) * 0.6 + lp(osc, 420) * np.exp(-t / 0.22)
+            if not hi:
+                sig = sig + 0.9 * np.sin(2 * np.pi * f / 2 * t) * np.exp(-t / 0.3)
+            place(x, sig * gate(d), t0)
+            t0 += BEAT / 2
+    s0, s1, n = last
+    f = E2 * 2 ** (SEMI[n] / 12)
+    t = t_(s1 - s0)
+    ph = f * t
+    osc = 0.6 * (2 * (ph % 1) - 1) + 0.5 * np.tanh(3 * np.sin(2 * np.pi * ph))
+    sig = lp(osc, 900) * np.exp(-t / 0.3) + 0.9 * np.sin(2 * np.pi * f / 2 * t) * np.exp(-t / 0.45)
+    place(x, sig * gate(s1 - s0, r=0.05), s0)
+    return x
+
+
+def alt_808():
+    """One long saturated 808 per slot, gliding between notes (E1 up to C2, down to G1, up to D2 and
+    home), a pitch punch on each new note, and ducked under every kick so the kick still cuts."""
+    up = {"E": 0, "G": 3, "A": 5, "C": 8, "D": 10}
+    x = np.zeros(N + SR)
+    slots, last = plan()
+    kicks = np.array(sorted(hits["kick"]))
+    sections = [[sl for sl in slots if sl[1] <= 4.0 + 1e-6], [sl for sl in slots if sl[0] >= 5.6 - 1e-6], [last]]
+    for k, sec in enumerate(sections):
+        a, b = sec[0][0], sec[-1][1]
+        t = np.arange(int((b - a) * SR)) / SR
+        target = np.empty_like(t)
+        punch = np.zeros_like(t)
+        amp = np.empty_like(t)
+        for s0, s1, n in sec:
+            m = (t >= s0 - a - 1e-9) & (t < s1 - a)
+            target[m] = 41.2 * 2 ** (up[n] / 12)
+            dt = t[m] - (s0 - a)
+            punch[m] = np.exp(-dt / 0.018)
+            amp[m] = (0.75 + 0.25 * np.exp(-dt / 0.12)) if k < 2 else np.exp(-dt / 0.5)
+        glide = np.empty_like(target)          # portamento: one-pole slew towards each new note
+        c = np.exp(-1 / (0.035 * SR))
+        v = target[0]
+        for i, tv in enumerate(target):
+            v = c * v + (1 - c) * tv
+            glide[i] = v
+        fr = glide * 2 ** (0.6 * punch)
+        ph = 2 * np.pi * np.cumsum(fr) / SR
+        sig = np.tanh(2.2 * np.sin(ph)) / np.tanh(2.2) + 0.15 * np.sin(2 * ph)
+        duck = np.ones_like(t)
+        for tk in kicks[(kicks >= a - 1e-9) & (kicks < b)]:
+            m = t >= tk - a
+            duck[m] *= 1 - 0.55 * np.exp(-(t[m] - (tk - a)) / 0.06)
+        env = amp * duck * np.minimum(1, t / 0.003) * np.clip((b - a - t) / 0.05, 0, 1)
+        place(x, lp(sig, 900) * env, a)
+    return x
+
+
+def alt_reese():
+    """A darker, syncopated line: three detuned saws (the slow beating is the 'reese'), driven, with a
+    slow filter drift and a sine sub, hitting on 1, the 'a' of 1, the 'and' of 2, 3, the 'a' of 3 and
+    the 'and' of 4."""
+    x = np.zeros(N + SR)
+    slots, last = plan()
+    pos = [0, 3, 6, 8, 11, 14]
+    for s0, s1, n in slots:
+        f = E2 * 2 ** (SEMI[n] / 12)
+        i0, i1 = int(round(s0 / S16)), int(round(s1 / S16))
+        on = [i for i in range(i0, i1) if i % 16 in pos]
+        for j, i in enumerate(on):
+            nxt = on[j + 1] if j + 1 < len(on) else i1
+            d = (nxt - i) * S16
+            t = t_(d)
+            tg = i * S16 + t
+            ph = f * t
+            saws = sum(2 * ((ph * r + o) % 1) - 1 for r, o in ((1, 0), (2 ** (9 / 1200), 0.31), (2 ** (-11 / 1200), 0.67)))
+            drv = np.tanh(1.8 * saws / 3)
+            lfo = 0.5 + 0.5 * np.sin(2 * np.pi * 0.6 * tg)
+            sig = lp(drv, 400) * (1 - lfo) + lp(drv, 1100) * lfo + 0.8 * np.sin(2 * np.pi * f / 2 * t)
+            place(x, sig * gate(d, 0.004, 0.015), i * S16)
+    s0, s1, n = last
+    f = E2 * 2 ** (SEMI[n] / 12)
+    t = t_(s1 - s0)
+    ph = f * t
+    saws = sum(2 * ((ph * r + o) % 1) - 1 for r, o in ((1, 0), (2 ** (9 / 1200), 0.31), (2 ** (-11 / 1200), 0.67)))
+    sig = lp(np.tanh(1.8 * saws / 3), 600) + 0.8 * np.sin(2 * np.pi * f / 2 * t)
+    place(x, sig * np.exp(-t / 0.35) * gate(s1 - s0, 0.004, 0.05), s0)
+    return x
+
+
+def lufs_of(y):
+    sf.write("lufs_probe.wav", y.astype(np.float32), SR, subtype="FLOAT")
+    m = subprocess.run(["ffmpeg", "-hide_banner", "-i", "lufs_probe.wav", "-af",
+                        "loudnorm=I=-14:TP=-1.5:print_format=json", "-f", "null", "-"],
+                       capture_output=True, text=True).stderr
+    os.remove("lufs_probe.wav")
+    return float(json.loads(m[m.index("{"):m.rindex("}") + 1])["input_i"])
+
+
+def bass_chain(raw):
+    """04_bass's exact path: music room, soft-clip, high-pass, fade, the mix's bus gain, the loudness gain."""
+    y = verb(raw, ir_m, 0.12)[:N]
+    y = hp(np.tanh(y * 0.8 * 0.9), 28, 2) * fade[:, None]
+    y *= gain[:, None]
+    return y * g
+
+
+ref = st["bass"] * g
+assert np.abs(bass_chain(bus["bass"]) - ref).max() < 1e-9, "frozen chain does not reproduce 04_bass"
+ref_lufs = lufs_of(ref)
+rest = mix * g - ref
+for tag, fn in (("a_rolling-octaves", alt_rolling), ("b_808-glide", alt_808), ("c_reese", alt_reese)):
+    mono = fn()
+    raw = np.stack([mono, mono], 1)
+    pre = 0.4
+    for _ in range(3):                       # level-match to the original bass stem (through the soft-clip)
+        y = bass_chain(raw * pre)
+        pre *= 10 ** ((ref_lufs - lufs_of(y)) / 20)
+    y = bass_chain(raw * pre)
+    sf.write(f"stems/bass-alternates/04_bass_alt-{tag}.wav", y.astype(np.float32), SR, subtype="PCM_24")
+    sf.write(f"preview_bass-{tag}.wav", (rest + y).astype(np.float32), SR, subtype="FLOAT")
+    print(f"bass alt {tag}: {lufs_of(y):.1f} LUFS (original {ref_lufs:.1f}), "
+          f"peak {20 * np.log10(np.abs(y).max()):.1f} dBFS; mix with it {lufs_of(rest + y):.1f} LUFS")

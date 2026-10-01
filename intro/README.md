@@ -50,6 +50,17 @@ For a music app or DAW: 150 bpm, 4/4, bar 1 starts at 0.0 s, and the key is E mi
 | `09_whooshes-riser` | Flyaway whooshes after each rip, plus the riser into the burst (4.8 to 5.2) |
 | `10_impact` | The sub boom when Adam bursts through |
 
+### Alternative bass lines (`stems/bass-alternates/`)
+Three drop-in replacements for `04_bass`. Mute `04_bass` and drop one in at 0. They follow the same arrangement: in under the run from 0.8 s, out for the digits, back for the end card, and a note on the final hit. Unlike the original, which holds an E for almost the whole intro, they play a progression: E for the run, C then D into rip 2, then E E C G D on the end card, resolving to E on the final hit.
+
+Each one goes through exactly the same processing as `04_bass`, with the compressor and loudness gains taken from the current mix. So the other nine stems, the mix and the video are unchanged. Each is level-matched to the original bass, and the mix measures -13.8 to -13.9 LUFS with any of them.
+
+| File | Feel |
+| --- | --- |
+| `04_bass_alt-a_rolling-octaves` | Bouncing 8th notes, low on the beat and an octave up off it. A plucky tone with a sub under the low notes. Driving, like a running cadence. |
+| `04_bass_alt-b_808-glide` | One long, slightly distorted 808 note per chord. It slides between notes (E up to C, down to G, up to D, home to E), has a punch on each new note, and dips under every kick so the kick still cuts through. The deepest and most modern option. |
+| `04_bass_alt-c_reese` | Darker and syncopated: three detuned saws with a slow filter drift and a sine sub, hitting off the beat. Drum-and-bass flavoured. |
+
 Each stem already has its share of the mix processing baked in: a short room, its own soft-clip, and the bus compressor's gain (keyed from the whole mix, so it rides every stem by the same amount). Mute or re-level them freely and the rest still sits the same.
 
 ## Design notes
@@ -68,7 +79,7 @@ These depart from the guidelines on purpose. They're things to keep or drop if y
 - **End-card hold:** `HOLD=0.8 NAME=sub3piece_intro_v3 edit/build.sh` changes how long the end card lingers past v1. The default is 1.6. Keep it a multiple of 0.4 to stay on the beat. `HOLD=0` gives the v1 timing.
 - **4K:** `SCALE=2 edit/build.sh` renders at 3840×2160. Those files exceed GitHub's size limit, so don't commit them.
 - `edit/render.py`: all visuals. Timings are the `T_*` constants at the top, copy is in the scene functions, and the run cycle is `run_pose`.
-- `edit/audio.py`: the synthesised groove and foley, cued to the same times. Each `add("stem-name", …)` call says which stem a sound lands on.
+- `edit/audio.py`: the synthesised groove and foley, cued to the same times. Each `add("stem-name", …)` call says which stem a sound lands on. The alternative bass lines are `alt_rolling`, `alt_808` and `alt_reese` at the end of the file, and the chord plan they share is in `plan()`.
 - `edit/cutout.py`: how the `adam{1,2,3}.png` cutouts were made (rembg isnet + SAM, plus hand-drawn masks to remove the runners around him). The cutouts are committed, so you only need it for new photos.
 
 ## Heads-up
