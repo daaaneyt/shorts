@@ -10,7 +10,7 @@ A 6.8-second ident for the top of every weekly vlog. A stopwatch runs a whole ma
 | `sub3piece_intro_audio.wav` | The sound design on its own, 48 kHz 24-bit stereo, for the editor's own mix |
 | `sub3piece_intro_endframe.png` | The 4K logo hold, for a thumbnail or an end card |
 
-**Specs:** H.264 High, 4:2:0, BT.709 SDR, AAC 320 kbps. Audio is -16 LUFS integrated with true peaks at -1.1 dBTP (after AAC), so it sits level with dialogue before YouTube's -14 normalisation. The intro opens on ink and fades back to ink over its last 0.5 s, so a straight cut into footage works. If you prefer a hard cut, cut anywhere in the logo hold (4.5–6.3 s). There is no episode-specific text, so the same file works every week.
+**Specs:** H.264 High, 4:2:0, BT.709 SDR, AAC 320 kbps. Audio is -16 LUFS integrated with true peaks at -1.2 dBTP, so it sits level with dialogue before YouTube's -14 normalisation. The intro opens on ink and fades back to ink over its last 0.5 s, so a straight cut into footage works. If you prefer a hard cut, cut anywhere in the logo hold (4.5–6.3 s). There is no episode-specific text, so the same file works every week.
 
 ## Storyboard (150 BPM grid: beat 0.4 s)
 
