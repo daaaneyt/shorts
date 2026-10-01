@@ -1,4 +1,5 @@
 frames/
 prev/
+stems/
 *.wav
 __pycache__/

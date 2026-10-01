@@ -11,13 +11,17 @@ timed to a 150 bpm grid, so one beat is 0.4 s = 4 steps.
   3.6  GUINNESS WORLD RECORD / 2:38:21 slapped on digit by digit / THE TIME TO BEAT
   5.1  the time cracks, 5.2 Adam bursts through it
   5.6  end card: sub3piece, London Marathon 2027, Spinal Research
-  7.6  rip 3: the end card tears away to transparent (the episode shows through)
+  9.2  rip 3: the end card tears away to transparent (the episode shows through)
+
+--hold sets how long the end card lingers past v1's: 1.6 s (one bar) by default
+for v2, 0 for the v1 cut. Keep it a multiple of 0.4 to stay on the beat.
 
 Usage:
   python3 render.py                       # RGBA PNG sequence -> frames/
   python3 render.py --preview 0.5 2 4.7   # preview PNGs (over ink) at those times
   python3 render.py --label "WEEK 07"     # adds an episode tag to the end card
   python3 render.py --scale 2             # 3840x2160
+  python3 render.py --hold 0              # v1 timing (8.0 s)
 """
 import argparse, functools, math, os, zlib
 import numpy as np, cv2
@@ -29,12 +33,14 @@ ap.add_argument("--scale", type=float, default=1.0, help="1 = 1920x1080, 2 = 384
 ap.add_argument("--label", default="", help='optional episode tag on the end card, e.g. "WEEK 07"')
 ap.add_argument("--preview", nargs="*", type=float, help="write preview PNGs at these times (s)")
 ap.add_argument("--frames", default="frames", help="output folder for the RGBA PNG sequence")
+ap.add_argument("--hold", type=float, default=1.6, help="extra end-card seconds over v1 (multiple of 0.1)")
 args = ap.parse_args()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S = args.scale
 W, H = round(1920 * S), round(1080 * S)
-FPS, POST, DUR = 30, 10, 8.0          # 30 fps out, motion posterised to 10 fps
+HOLD = round(args.hold * 10) / 10
+FPS, POST, DUR = 30, 10, 8.0 + HOLD   # 30 fps out, motion posterised to 10 fps
 NF = round(DUR * FPS)
 MD = 100                              # sheets overhang the frame by this much (design px)
 M = round(MD * S)
@@ -45,7 +51,7 @@ T_RIP2 = 3.2
 T_EYEBROW, T_DIGITS, T_TOBEAT = 3.6, 4.0, 4.8
 T_CRACK, T_BURST = 5.1, 5.2
 T_WORD, T_STRIP1, T_STRIP2, T_LABEL = 5.6, 6.0, 6.2, 6.4
-T_OUT = 7.6
+T_OUT = 7.6 + HOLD
 
 
 def hexc(h):
