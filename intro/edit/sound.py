@@ -10,11 +10,13 @@ Layers
           km ratchet (one click per km marker crossing the playhead), the
           spinning-drum whir whose pitch follows the clock speed, a sub pulse
           on the 150 BPM beat and a low fifth that opens with the speed
-  stop    stopwatch stop, low impact, photo-finish shimmer; everything else
-          cuts dead so the frozen 2:59:59 sits in its own reverb tail
+  stop    stopwatch stop on 2:38:20, low impact, photo-finish shimmer, a pen
+          scratch as the 2:38:21 record is struck through; everything else
+          cuts dead so the frozen time sits in its own reverb tail
   pieces  three whooshes (right to left, with the bands) and three latches,
           each playing one note of the sonic logo: E5, B5, F#6 (stacked
-          fifths) which resolve onto D at the logo as a D6/9 chord
+          fifths) which resolve onto D at the logo as a D6/9 chord, left to
+          ring through the hold; a soft stopwatch reset under the fade-out
 Output: 48 kHz 24-bit stereo WAV, about -16 LUFS integrated, -1 dBTP ceiling.
 
 Usage: python3 sound.py [events.json] [out.wav]
@@ -190,7 +192,7 @@ place(dry, tink, T["playIn"][0], db(-34), rev=0.6)
 
 # corner labels type on: whisper clicks, panned to their corners
 labels = [("LONDON MARATHON 2027", T["labelsIn"], -0.7),
-          ("TARGET  SUB 3:00:00", T["labelsIn"] + 0.05, 0.7),
+          ("RECORD TO BEAT  2:38:21", T["labelsIn"] + 0.05, 0.7),
           ("Z2  TRAIN", T["labelsIn"] + 0.1, -0.7),
           ("DIST  00.000 KM", T["labelsIn"] + 0.15, 0.7)]
 for k, (s, t0, p) in enumerate(labels):
@@ -293,6 +295,13 @@ sh = sum(np.sin(2 * np.pi * f * tt) for f in (5274, 6272, 7040)) * np.exp(-tt / 
 sh[:96] *= np.linspace(0, 1, 96)
 place(dry, sh / np.abs(sh).max(), stop + 0.004, db(-36), pan=0.0, rev=0.7)
 
+# the record is struck through: a short dry pen scratch, top right
+n = int((T["strike"][1] - T["strike"][0]) * SR)
+tt = np.arange(n) / SR
+scr = tv_bandpass(noise(n, 41), 3800 + 2600 * tt / tt[-1], 3.0)
+scr *= np.sin(np.pi * np.clip(tt / tt[-1], 0, 1)) ** 0.7 * (1 + 0.5 * np.sin(2 * np.pi * 38 * tt))
+place(dry, scr / np.abs(scr).max(), T["strike"][0], db(-33), pan=0.7, rev=0.15)
+
 # ---------------------------------------------------------------- the three pieces
 notes = {2: 659.26, 1: 987.77, 0: 1479.98}           # bottom band locks first: E5, B5, F#6
 for i, (b0, b1) in enumerate(T["bands"]):
@@ -308,14 +317,19 @@ sub = thump(73.42 * 1.03, 73.42, tau=0.45, dur=1.6, drive=1.05)
 place(dry, sub, logo, db(-24))
 for f, g, p, dt in ((146.83, -29, -0.2, 0.000), (220.00, -30, 0.2, 0.006), (329.63, -30, -0.3, 0.012),
                     (369.99, -30, 0.3, 0.016), (587.33, -32, 0.0, 0.022)):
-    place(dry, mallet(f, dur=DUR - logo + 0.1, tau=0.9, bright=0.5), logo + dt, db(g), pan=p, rev=0.45)
-bed = hp(pad([146.83, 220.0, 329.63, 369.99], DUR - logo + 0.2, 0.25, 1.2, cutoff=1100, seed=8), 120)
+    place(dry, mallet(f, dur=DUR - logo + 0.1, tau=1.25, bright=0.5), logo + dt, db(g), pan=p, rev=0.45)
+bed = hp(pad([146.83, 220.0, 329.63, 369.99], DUR - logo + 0.2, 0.25, 1.7, cutoff=1100, seed=8), 120)
 place(dry, np.stack([bed, np.r_[np.zeros(90), bed[:-90]]], 1), logo, db(-34), rev=0.3)
 # the tick forms and the tagline types: two tiny details
 place(dry, mallet(2349.3, dur=0.6, tau=0.12, bright=0.2), T["tickGrow"][1] - 0.02, db(-36), rev=0.6)
 for i in range(0, 42, 3):
     place(dry, click(5600, 10500, tau=0.0007, dur=0.01, seed=500 + i), T["tagline"] + i * 0.009 + 0.02,
           db(-48), pan=-0.4 + 0.8 * i / 42)
+
+# reset: the stopwatch's third button, quietly, as the frame goes back to ink
+reset = click(2300, 5200, tau=0.0025, ring=0.25, ring_f=1200, ring_tau=0.03, dur=0.08, seed=60)
+place(dry, reset, T["exit"][0] + 0.18, db(-25), rev=0.5)
+place(dry, click(2700, 6100, tau=0.0012, dur=0.03, seed=61), T["exit"][0] + 0.215, db(-33), rev=0.4)
 
 # ---------------------------------------------------------------- reverb + master
 def make_ir(rt60=0.9, dur=1.6, seed=42):

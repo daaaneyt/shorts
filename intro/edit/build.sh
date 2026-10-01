@@ -42,5 +42,5 @@ done
 
 if [ "$SCALE" = 2 ] && [ -d frames_4k_30 ]; then
   encode frames_4k_30 30 1920 1080 "$OUT/sub3piece_intro_1080p_30fps.mp4"
-  cp frames_4k_30/f0138.png "$OUT/sub3piece_intro_endframe.png"   # t = 4.6 s, the logo hold
+  cp frames_4k_30/f0180.png "$OUT/sub3piece_intro_endframe.png"   # t = 6.0 s, the logo hold
 fi

@@ -19,8 +19,8 @@
  * render.cjs drives renderFrame(t) frame by frame; motion blur is real temporal
  * supersampling (180° shutter), so fast moves smear the way a camera sees them.
  *
- * Story: a stopwatch runs a whole marathon (0:00:00 → 2:59:59, one tick under
- * three hours) over a km ruler, then the readout is swapped for the wordmark in
+ * Story: a stopwatch runs a whole marathon (0:00:00 → 2:38:20, one second inside
+ * the 2:38:21 record) over a km ruler, then the readout is swapped for the wordmark in
  * three horizontal pieces (trousers, waistcoat, jacket: bottom band first).
  */
 
@@ -76,17 +76,20 @@ const T = {
   labelsIn: 0.26, readoutIn: 0.40, rulerIn: [0.46, 0.80],
   start: 0.80, fastEnd: 2.00, stop: 2.80,
   rulerOut: [2.96, 3.30], playOut: [3.26, 3.50],
-  finishFlash: [2.80, 3.22],
+  finishFlash: [2.80, 3.22], strike: [2.92, 3.16],
   bands: [[3.56, 3.80], [3.36, 3.60], [3.16, 3.40]], // [top, mid, bottom]: bottom locks first
   contract: [3.44, 3.96], tickColor: [3.62, 3.94], tickGrow: [3.72, 3.98],
   logo: 4.00, tagline: 4.00, footerSwap: 4.04,
-  exit: [5.20, 5.60], end: 5.60,
+  push: [3.80, 6.80],                 // slow push-in on the lockup through the hold
+  exit: [6.30, 6.80], end: 6.80,
 };
 
 // ---------- the race clock ----------
-// 0:00:00 → 2:59:55 by T.fastEnd on a log-speed bell (starts and ends at 5
-// race-seconds per second), then four clean ticks on 8ths to 2:59:59 at T.stop.
-const RACE_END = 10799, RACE_FAST = 10795, V0 = 5, DT = 1e-4;
+// 0:00:00 → 2:38:16 by T.fastEnd on a log-speed bell (starts and ends at 5
+// race-seconds per second), then four clean ticks on 8ths to 2:38:20 at T.stop:
+// one second inside the record.
+const RECORD = '2:38:21';
+const RACE_END = 2 * 3600 + 38 * 60 + 20, RACE_FAST = RACE_END - 4, V0 = 5, DT = 1e-4;
 function bell(u) {
   const a = 0.30, b = 0.44, s = x => x * x * (3 - 2 * x);
   if (u <= 0 || u >= 1) return 0;
@@ -265,8 +268,16 @@ function drawFrameChrome(t) {
 
   const yTop = RULE_TOP - 26, yBot = RULE_BOT + 40;
   monoText('LONDON MARATHON 2027', MARGIN, yTop, LABEL, C.graphite, 'left', typeOn(t, T.labelsIn));
-  const tr = 'TARGET  SUB 3:00:00';
-  monoText(tr, W - MARGIN, yTop, LABEL, [...tr].map((c, i) => i < 6 ? C.graphite : C.paper), 'right', typeOn(t, T.labelsIn + 0.05));
+  // top-right: the record to beat, struck through when the clock stops inside it
+  const tr = `RECORD TO BEAT  ${RECORD}`, v0 = tr.length - RECORD.length;
+  const st = easeOut(seg(t, ...T.strike));
+  const valCol = mixHex(C.paper, C.graphite2, st);
+  const lab = monoText(tr, W - MARGIN, yTop, LABEL, [...tr].map((c, i) => i < v0 ? C.graphite : valCol), 'right', typeOn(t, T.labelsIn + 0.05));
+  if (st > 0) {
+    const cell = monoCell(LABEL), xa = lab.x0 + v0 * cell - 4, xb = lab.x0 + lab.w + 4;
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(xa, yTop - 0.36 * LABEL, (xb - xa) * st, 1.5);
+  }
 
   // bottom-left: live effort zone → handle
   const d = dist(t), zi = zoneIndex(d), z = ZONES[zi];
@@ -457,9 +468,14 @@ function drawScene(t) {
   ctx.setTransform(S, 0, 0, S, 0, 0);
   ctx.letterSpacing = '0px';
   drawFrameChrome(t);
+  // once the pieces lock, the lockup creeps towards camera while the frame chrome
+  // stays put: the hold keeps breathing without anything new happening
+  const k = 1 + 0.025 * easeInOut(seg(t, ...T.push));
+  if (k > 1) { ctx.translate(CX, 560); ctx.scale(k, k); ctx.translate(-CX, -560); }
   drawLineAndRuler(t);
   drawCentre(t);
   if (t >= T.tagline) drawTagline(t);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
   const e = easeInOut(seg(t, ...T.exit));
   if (e > 0) { ctx.globalAlpha = e; ctx.fillStyle = C.ink; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
