@@ -16,12 +16,19 @@ timed to a 150 bpm grid, so one beat is 0.4 s = 4 steps.
 --hold sets how long the end card lingers past v1's: 1.6 s (one bar) by default
 for v2, 0 for the v1 cut. Keep it a multiple of 0.4 to stay on the beat.
 
+--sync music_sync.json (music mode) retimes everything to a supplied track instead:
+each animation step becomes one 16th note of that track (see music_sync.py and
+timing.py), so every slap, tear and stamp lands on a hit. Three events move so the
+track's strongest accents carry the picture, a short tension ramp builds under the
+opening roll, and the end card jolts on the track's last hits.
+
 Usage:
   python3 render.py                       # RGBA PNG sequence -> frames/
   python3 render.py --preview 0.5 2 4.7   # preview PNGs (over ink) at those times
   python3 render.py --label "WEEK 07"     # adds an episode tag to the end card
   python3 render.py --scale 2             # 3840x2160
   python3 render.py --hold 0              # v1 timing (8.0 s)
+  python3 render.py --sync music_sync.json   # music mode; preview times are real seconds
 """
 import argparse, functools, math, os, zlib
 import numpy as np, cv2
@@ -33,25 +40,32 @@ ap.add_argument("--scale", type=float, default=1.0, help="1 = 1920x1080, 2 = 384
 ap.add_argument("--label", default="", help='optional episode tag on the end card, e.g. "WEEK 07"')
 ap.add_argument("--preview", nargs="*", type=float, help="write preview PNGs at these times (s)")
 ap.add_argument("--frames", default="frames", help="output folder for the RGBA PNG sequence")
-ap.add_argument("--hold", type=float, default=1.6, help="extra end-card seconds over v1 (multiple of 0.1)")
+ap.add_argument("--hold", type=float, default=None,
+                help="extra end-card seconds over v1, in animation time (v2 default 1.6, music mode 1.2)")
+ap.add_argument("--sync", default=None, help="music_sync.json: retime to a supplied track (music mode)")
 args = ap.parse_args()
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S = args.scale
 W, H = round(1920 * S), round(1080 * S)
-HOLD = round(args.hold * 10) / 10
-FPS, POST, DUR = 30, 10, 8.0 + HOLD   # 30 fps out, motion posterised to 10 fps
-NF = round(DUR * FPS)
+import timing
+GRID = timing.Grid(args.sync) if args.sync else None
+TC = timing.constants(bool(GRID), None if args.hold is None else round(args.hold * 10) / 10)
+HOLD, DUR = TC["HOLD"], TC["DUR"]
+FPS, POST = 30, 10                    # 30 fps out, motion posterised to 10 steps a second (of animation time)
+NF = round(GRID.duration(DUR) * FPS) if GRID else round(DUR * FPS)
 MD = 100                              # sheets overhang the frame by this much (design px)
 M = round(MD * S)
 SW, SH = W + 2 * M, H + 2 * M
 
-T_LINE2, T_RIP1 = 0.4, 0.8
-T_RIP2 = 3.2
-T_EYEBROW, T_DIGITS, T_TOBEAT = 3.6, 4.0, 4.8
-T_CRACK, T_BURST = 5.1, 5.2
-T_WORD, T_STRIP1, T_STRIP2, T_LABEL = 5.6, 6.0, 6.2, 6.4
-T_OUT = 7.6 + HOLD
+T_LINE2, T_RIP1, T_RIP2 = TC["T_LINE2"], TC["T_RIP1"], TC["T_RIP2"]
+T_EYEBROW, T_DIGITS, T_TOBEAT = TC["T_EYEBROW"], TC["T_DIGITS"], TC["T_TOBEAT"]
+T_CRACK, T_BURST = TC["T_CRACK"], TC["T_BURST"]
+T_WORD, T_STRIP1, T_STRIP2, T_LABEL = TC["T_WORD"], TC["T_STRIP1"], TC["T_STRIP2"], TC["T_LABEL"]
+T_OUT = TC["T_OUT"]
+RUN0 = round(T_RIP1 + 0.2, 1)                       # the run starts the step the first tear opens
+# the end card jolts on the track's last hits (music mode): step -> weight
+PULSE = {68: 1.0, 70: 0.6, 72: 1.6} if GRID else {}
 
 
 def hexc(h):
@@ -483,9 +497,10 @@ def put_slapped(dst, spr, key, t, ta, pos, rot, off, shadow=0.5, amt=1.0):
 def scene1(dst, t, off):
     k = step_of(t)
     fill(dst, "ink", off, "s1", k)
+    amt = 0.8 + (0.22 * min(max(k - 3, 0), 5) if GRID else 0.0)   # the sheet shudders harder as the roll builds
     for text, col, y, ta in (("26.2 miles.", "F3F1EA", 372, 0.0), ("In a suit.", "FF5A2C", 738, T_LINE2)):
         if q(t) >= ta:
-            bx, by, br = boil(("s1", text), k, 0.8)
+            bx, by, br = boil(("s1", text), k, amt)
             put(dst, text_sprite(text, "grotesk", 215, col, -0.02, "s1"), (960 + bx, y + by), br * 0.5, off=off)
 
 
@@ -499,7 +514,7 @@ def run_pose(t):
 
 def scene2(dst, t, off):
     k = step_of(t)
-    tt = q(t) - 1.0
+    tt = q(t) - RUN0
     fill(dst, "orange", off, "s2", k)
     ta = scrap(3700, 196, "paper", "tickA", TICK_A, "grotesk", 132, "0C0D10", 0.0, 0.6, 3, "FF5A2C")
     tb = scrap(3700, 132, "ink", "tickB", TICK_B, "mono", 78, "F3F1EA", 0.06, 0.6, 4, "FF5A2C")
@@ -507,9 +522,10 @@ def scene2(dst, t, off):
     put(dst, ta, (1460 - 470 * tt + bx, 292 + by), -5 + br * 0.4, shadow=0.45, off=off)
     bx, by, br = boil("tickB", k, 0.7)
     put(dst, tb, (460 + 470 * tt + bx, 838 + by), 4 + br * 0.4, shadow=0.45, off=off)
-    # race clock: a marathon's worth of time in 2.2 s, stopping short of the record
-    kc = min(max(k, 10), 31) - 10
-    secs = int((kc / 21) ** 0.9 * (2 * 3600 + 29 * 60)) + int(np.random.default_rng(kc).integers(0, 59)) * (kc > 0)
+    # race clock: a marathon's worth of time over the run, stopping short of the record
+    k0, k1 = round(RUN0 * 10), round(T_RIP2 * 10) - 1
+    kc = min(max(k, k0), k1) - k0
+    secs = int((kc / (k1 - k0)) ** 0.9 * (2 * 3600 + 29 * 60)) + int(np.random.default_rng(kc).integers(0, 59)) * (kc > 0)
     clock = scrap(330, 96, "ink", "clock", f"{secs // 3600}:{secs // 60 % 60:02d}:{secs % 60:02d}", "mono", 62,
                   "FF5A2C", 0.04, 0.4)
     bx, by, br = boil("clock", k, 0.8)
@@ -562,12 +578,14 @@ ADAM_END_HEAD = 70
 def scene4(dst, t, off, with_adam=True):
     k = step_of(t)
     fill(dst, "paper", off, "s4", k)
-    bx, by, br = boil("blob", k, 0.6)
-    put(dst, blob(372, "orange", "sun"), (1440 + bx, 590 + by), br, shadow=0.35, off=off)
+    pu = PULSE.get(k, 0.0)
+    bx, by, br = boil("blob", k, 0.6 + 0.5 * pu)
+    put(dst, blob(372, "orange", "sun"), (1440 + bx, 590 + by), br, 1 + 0.05 * pu, shadow=0.35, off=off)
     if with_adam:
         bx, by, br = boil("adam_end", k, 1.0)
         stride = (k // 2) % 2                       # keeps running on the spot, on twos of steps
-        put(dst, adam(3, ADAM_END_HEAD), (ADAM_END[0] + bx, ADAM_END[1] + by - 7 * stride), br - 1.5 + stride, 1.0,
+        put(dst, adam(3, ADAM_END_HEAD), (ADAM_END[0] + bx, ADAM_END[1] + by - 7 * stride - 9 * pu),
+            br - 1.5 + stride + 1.2 * pu, 1.0 + 0.02 * pu,
             shadow=0.5, sh_off=(10, 14), sh_blur=12, off=off)
     word = text_sprite("sub3piece", "grotesk", 212, "0C0D10,FF5A2C", -0.04, "wordmark")
     put_slapped(dst, word, "wordmark", t, T_WORD, (650, 480), 0.0, off, shadow=0.0, amt=0.5)
@@ -723,18 +741,26 @@ def to_straight(fr):
     return np.uint8(np.round(np.clip(np.dstack([rgb, a]), 0, 1) * 255))
 
 
+def anim_time(real_t):
+    """Animation time to draw for the frame starting at real_t. In music mode the step comes from the
+    track's grid (nearest-frame rounding) and the time sits mid-step, so no comparison sits on an edge."""
+    if not GRID:
+        return real_t
+    return (GRID.internal_step(real_t, FPS) + 0.5) / POST
+
+
 if __name__ == "__main__":
     if args.preview is not None:
         os.makedirs("prev", exist_ok=True)
         for t in args.preview:
-            fr = render(t)
+            fr = render(anim_time(t))
             out = fr[..., :3] + INK * (1 - fr[..., 3:4])
             Image.fromarray(np.uint8(np.clip(out, 0, 1) * 255)).save(f"prev/prev_{t:05.2f}.png")
             print("prev", t)
     else:
         os.makedirs(args.frames, exist_ok=True)
         for i in range(NF):
-            fr = render(i / FPS)
+            fr = render(anim_time(i / FPS))
             Image.fromarray(to_straight(fr), "RGBA").save(f"{args.frames}/{i:04d}.png", compress_level=1)
             if i % 30 == 0:
                 print("frame", i, flush=True)
