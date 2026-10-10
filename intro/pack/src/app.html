@@ -1,0 +1,119 @@
+<header class="top">
+  <span class="wm">sub<b>3</b>piece</span>
+  <span class="tool">Paper text</span>
+  <p class="note">Type your words, pick a look, export a transparent clip for Premiere or DaVinci Resolve.</p>
+</header>
+
+<main class="app">
+  <section class="stage" aria-label="Preview">
+    <div class="screen" id="screen" data-bg="checker">
+      <canvas id="cv" width="1920" height="1080" aria-label="Animated preview of the element"></canvas>
+      <span class="hint" id="hint" hidden>Drag to move</span>
+      <span class="busy" id="busy" hidden>Building</span>
+    </div>
+
+    <div class="transport">
+      <button class="icon-btn" id="play" type="button" aria-label="Pause">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path id="playIcon" d="M3 2h3v10H3zM8 2h3v10H8z" fill="currentColor"/></svg>
+      </button>
+      <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Scrub through the clip">
+      <span class="tc" id="tc">0.00 / 0.00 s</span>
+      <div class="seg" id="bgs" role="group" aria-label="Preview background">
+        <button type="button" data-bg="checker" aria-pressed="true">Clear</button>
+        <button type="button" data-bg="dark" aria-pressed="false">Dark</button>
+        <button type="button" data-bg="light" aria-pressed="false">Light</button>
+        <button type="button" data-bg="road" aria-pressed="false">Footage</button>
+      </div>
+    </div>
+
+    <div class="export">
+      <div class="row">
+        <div class="field" style="flex:1 1 120px"><label class="lbl" for="fps">Frame rate</label>
+          <select id="fps"><option value="30">30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div>
+        <div class="field" style="flex:1 1 150px"><label class="lbl" for="res">Frame size</label>
+          <select id="res"><option value="1">1920 × 1080</option><option value="2">3840 × 2160</option></select></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="exClip" type="button">Export clip (.zip)</button>
+        <button class="btn" id="exStill" type="button">Export still (.png)</button>
+      </div>
+      <progress id="prog" max="1" value="0" hidden></progress>
+      <p class="status" id="status" role="status" aria-live="polite">Ready. The clip is a PNG sequence with transparency, placed in a full frame so it drops straight onto the top track.</p>
+      <details class="batch" id="batch">
+        <summary>Batch: one clip per line</summary>
+        <p class="help">Uses the look above. One line makes one clip. Use <code>//</code> for a line break inside a clip and <code>| 4</code> to set that clip's hold in seconds. Everything lands in a single zip.</p>
+        <textarea id="batchText" rows="5" spellcheck="false" placeholder="WEEK 07&#10;LONG RUN | 4&#10;5K PB | 3"></textarea>
+        <div class="row" style="margin-top:8px"><button class="btn" id="exBatch" type="button">Export all (.zip)</button></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Controls">
+    <fieldset class="grp">
+      <legend>Element</legend>
+      <div class="types" id="types">
+        <button class="type" type="button" data-type="strip" aria-pressed="true"><b>Strip</b><span>Mono caps on torn strips, one line each.</span></button>
+        <button class="type" type="button" data-type="lower" aria-pressed="false"><b>Lower third</b><span>A name plate with a subtitle strip.</span></button>
+        <button class="type" type="button" data-type="title" aria-pressed="false"><b>Title</b><span>A big headline on a torn scrap.</span></button>
+        <button class="type" type="button" data-type="tiles" aria-pressed="false"><b>Stat tiles</b><span>Each character on its own tile.</span></button>
+        <button class="type" type="button" data-type="chapter" aria-pressed="false"><b>Chapter card</b><span>A full-frame sheet that tears open onto your footage.</span></button>
+      </div>
+    </fieldset>
+
+    <div class="field">
+      <label class="lbl" for="text">Text</label>
+      <textarea id="text" rows="3" spellcheck="false"></textarea>
+      <p class="help" id="textHelp"></p>
+    </div>
+
+    <fieldset class="grp">
+      <legend>Look</legend>
+      <div class="field"><span class="lbl" id="kindLbl">Paper</span><div class="chips" id="kind" role="group" aria-labelledby="kindLbl"></div></div>
+      <div class="field" id="kind2Wrap"><span class="lbl" id="kind2Lbl">Second paper</span><div class="chips" id="kind2" role="group" aria-labelledby="kind2Lbl"></div></div>
+      <div class="field"><span class="lbl" id="tcLbl">Text colour</span>
+        <div class="seg" id="textColor" role="group" aria-labelledby="tcLbl">
+          <button type="button" data-v="auto" aria-pressed="true">Auto</button><button type="button" data-v="ink" aria-pressed="false">Ink</button>
+          <button type="button" data-v="paper" aria-pressed="false">Paper</button><button type="button" data-v="orange" aria-pressed="false">Orange</button>
+        </div></div>
+      <div class="two">
+        <div class="range"><label class="lbl" for="size" style="margin:0">Size</label><output id="sizeO">100%</output>
+          <input type="range" id="size" min="0.6" max="1.6" step="0.05" value="1"></div>
+        <div class="field"><span class="lbl" id="tiltLbl">Tilt</span>
+          <div class="seg" id="tilt" role="group" aria-labelledby="tiltLbl"><button type="button" data-v="auto" aria-pressed="true">Loose</button><button type="button" data-v="flat" aria-pressed="false">Flat</button></div></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="grp">
+      <legend>Placement</legend>
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
+        <div class="pos" id="pos" role="group" aria-label="Position in the frame"></div>
+        <p class="help" style="flex:1 1 180px">Pick a spot, or drag the element in the preview. Lower-left keeps clear of title-safe edges.</p>
+      </div>
+    </fieldset>
+
+    <fieldset class="grp">
+      <legend>Motion</legend>
+      <div class="two">
+        <div class="field"><label class="lbl" for="hold">Hold (seconds)</label><input type="number" id="hold" min="0.5" max="30" step="0.5" value="2.5"></div>
+        <div class="range"><label class="lbl" for="boil" style="margin:0">Wobble</label><output id="boilO">1.0</output>
+          <input type="range" id="boil" min="0" max="2" step="0.1" value="1"></div>
+      </div>
+      <div class="two">
+        <div class="field"><span class="lbl" id="inLbl">Arrive</span>
+          <div class="seg" id="inStyle" role="group" aria-labelledby="inLbl"><button type="button" data-v="slap" aria-pressed="true">Slap</button><button type="button" data-v="cut" aria-pressed="false">Cut</button></div></div>
+        <div class="field"><span class="lbl" id="outLbl">Leave</span>
+          <div class="seg" id="outStyle" role="group" aria-labelledby="outLbl"><button type="button" data-v="tear" aria-pressed="true">Tear</button><button type="button" data-v="cut" aria-pressed="false">Cut</button><button type="button" data-v="none" aria-pressed="false">Stay</button></div></div>
+      </div>
+    </fieldset>
+
+    <fieldset class="grp">
+      <legend>Extras</legend>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="tape"> Tape</label>
+        <label class="check"><input type="checkbox" id="pop"> Pop-out scraps</label>
+        <label class="check"><input type="checkbox" id="underline"> Scribble underline</label>
+      </div>
+      <div><button class="btn" id="reroll" type="button">New tear pattern</button></div>
+    </fieldset>
+  </section>
+</main>
