@@ -16,6 +16,8 @@ A reusable intro for the weekly vlogs. It's a torn-paper collage animated on pos
 
 **Specs (v3):** 1920×1080, 30 fps, 10.333 s (310 frames), BT.709. Audio is 48 kHz.
 
+**Matching text elements:** `pack/` has a generator for torn-paper titles, strips, lower thirds, stat tiles and chapter cards in the same style, exported as transparent clips for Premiere or Resolve. See `pack/README.md`.
+
 ## v3: how it's locked to your track
 The track is 134.4 bpm. Its first hit (the start of the opening roll) is at 0.062 s, the drop at 0.955 s, and bars then run every 1.786 s until the music stops dead at 8.10 s and rings out as echoes. In v3, each animation step is one 16th note of the track (0.1116 s), so nothing drifts. `edit/music_sync.py` finds that grid from the audio; every frame then shows the step whose 16th note it's closest to.
 
