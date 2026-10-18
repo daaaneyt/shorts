@@ -122,15 +122,17 @@
     }
     return pts;
   }
-  function tornRect(x, y, w, h, rng, amp, S) {
-    const c = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], poly = [];
-    for (let i = 0; i < 4; i++) {
-      const a = c[i], b = c[(i + 1) % 4], ln = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  /** Torn edges along every side of a polygon given by its corners. */
+  function tornPoly(c, rng, amp, S) {
+    const poly = [];
+    for (let i = 0; i < c.length; i++) {
+      const a = c[i], b = c[(i + 1) % c.length], ln = Math.hypot(b[0] - a[0], b[1] - a[1]);
       const p = tornPath(a, b, rng, amp * Math.min(1, ln / (260 * S)), S);
       for (let j = 0; j < p.length - 1; j++) poly.push(p[j]);
     }
     return poly;
   }
+  function tornRect(x, y, w, h, rng, amp, S) { return tornPoly([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], rng, amp, S); }
   /** The white paper core that shows past the printed face along a tear: the polygon pushed outward by a noisy width. */
   function offsetPoly(poly, rng, S, k) {
     const n = poly.length; let A = 0;
@@ -180,7 +182,9 @@
     const S = o.S, pad = Math.round(24 * S), W = Math.round(o.w * S), H = Math.round(o.h * S);
     const cw = W + 2 * pad + Math.round(16 * S), ch = H + 2 * pad + Math.round(16 * S), ox = (cw - W) / 2, oy = (ch - H) / 2;
     const rng = rngOf('scrap', o.seed), kind = o.kind;
-    const poly = tornRect(ox, oy, W, H, rng, o.amp == null ? 0.5 : o.amp, S), outer = offsetPoly(poly, rng, S, 1);
+    const amp = o.amp == null ? 0.5 : o.amp;
+    const poly = o.corners ? tornPoly(o.corners.map(([px, py]) => [ox + px * S, oy + py * S]), rng, amp, S) : tornRect(ox, oy, W, H, rng, amp, S);
+    const outer = offsetPoly(poly, rng, S, 1);
     const c = mk(cw, ch), x = c.getContext('2d');
     pathOf(x, outer); x.fillStyle = CORE[kind]; x.fill();
     x.save(); pathOf(x, poly); x.clip();
@@ -272,34 +276,43 @@
     return { parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? rng.uni(-1.8, 1.8) : cfg.tilt, slap: 0, boil: 1, shadow: 0.5, key: 'T', sgn: rng.sign(), w, h }], tear: 'v' };
   }
 
-  function layoutTiles(cfg, S, rng) {
-    const raw = cfg.text.split('\n')[0] || ' ', chars = [...raw], sz = cfg.size;
-    const cycleK = ['paper', 'orange', 'white', 'orange', 'paper'], cycleF = ['grotesk', 'mono', 'grotesk', 'grotesk', 'mono'];
-    const dims = chars.map(c => c === ':' || c === '.' ? 76 : c === ' ' ? 70 : 196);
-    const total = dims.reduce((a, b) => a + b + 15, -15), fit = Math.min(1, 1760 / (total * sz)), k = sz * fit;
-    const parts = []; let x = -total * k / 2, ti = 0;
+  const CYCLE_K = ['paper', 'orange', 'white', 'orange', 'paper'], CYCLE_F = ['grotesk', 'mono', 'grotesk', 'grotesk', 'mono'];
+  const tileDims = (chars) => chars.map(c => c === ':' || c === '.' ? 76 : c === ' ' ? 70 : 196);
+  const rowWidth = (chars) => tileDims(chars).reduce((a, b) => a + b + 15, -15);
+  /** One row of ransom-note tiles centred on x = 0 at height yc. k scales it; slap0 is the step its first character lands. */
+  function tileRow(cfg, S, rng, chars, k, yc, slap0, tag) {
+    const dims = tileDims(chars), total = rowWidth(chars), parts = []; let x = -total * k / 2, ti = 0;
     chars.forEach((ch, i) => {
       const w = dims[i] * k;
       if (ch === ' ') { x += w + 15 * k; return; }
       if (ch === ':' || ch === '.') {
-        const spr = textSprite(ch, 'grotesk', 210 * k, TEXT.orange, 0, S, cfg.seed + 'c' + i);
-        parts.push({ spr, x: x + w / 2, y: 0, rot: rng.uni(-5, 5), slap: i, boil: 1, shadow: 0, key: 'c' + i, sgn: rng.sign(), w: spr.w, h: spr.h });
+        const spr = textSprite(ch, 'grotesk', 210 * k, TEXT.orange, 0, S, cfg.seed + tag + 'c' + i);
+        parts.push({ spr, x: x + w / 2, y: yc, rot: rng.uni(-5, 5), slap: slap0 + i, boil: 1, shadow: 0, key: tag + 'c' + i, sgn: rng.sign(), w: spr.w, h: spr.h });
       } else {
-        const kind = cfg.kind === 'mixed' || !cfg.kind ? cycleK[ti % 5] : cfg.kind, face = cycleF[ti % 5], px = (face === 'grotesk' ? 236 : 214) * k, h = 272 * k, txt = ch;
-        const spr = makeScrap({ w, h, kind, seed: cfg.seed + 't' + i, S, amp: 0.35,
+        const kind = cfg.kind === 'mixed' || !cfg.kind ? CYCLE_K[ti % 5] : cfg.kind, face = CYCLE_F[ti % 5], px = (face === 'grotesk' ? 236 : 214) * k, h = 272 * k, txt = ch;
+        const spr = makeScrap({ w, h, kind, seed: cfg.seed + tag + 't' + i, S, amp: 0.35,
           content: (xx, ox, oy, W, H, S2, r) => printText(xx, txt, face, px * S2, colorOf(cfg, kind, cfg.textColor), 0, ox + W / 2, oy + H / 2, S2, r) });
-        parts.push({ spr, x: x + w / 2, y: rng.uni(-18, 18) * k, rot: rng.uni(-7, 7), slap: i, boil: 1, shadow: 0.55, key: 't' + i, sgn: rng.sign(), w, h });
+        parts.push({ spr, x: x + w / 2, y: yc + rng.uni(-18, 18) * k, rot: rng.uni(-7, 7), slap: slap0 + i, boil: 1, shadow: 0.55, key: tag + 't' + i, sgn: rng.sign(), w, h });
         ti++;
       }
       x += w + 15 * k;
     });
-    return { parts, tear: 'v' };
+    return { parts, w: total * k, h: 272 * k, last: slap0 + chars.length - 1 };
+  }
+
+  function layoutTiles(cfg, S, rng) {
+    const chars = [...(cfg.text.split('\n')[0] || ' ')], sz = cfg.size;
+    const k = sz * Math.min(1, (cfg.fw - 160) / (rowWidth(chars) * sz));
+    return { parts: tileRow(cfg, S, rng, chars, k, 0, 0, '').parts, tear: 'v' };
   }
 
   function layoutChapter(cfg, S, rng) {
     const lines = cfg.text.split('\n').map(s => s.trim()).filter(Boolean); if (!lines.length) lines.push(' ');
-    const sz = cfg.size, px = 215 * sz * (lines.length > 2 ? 0.8 : 1), kind = cfg.kind || 'ink', parts = [];
-    const sw = W0 + 2 * MD, sh = H0 + 2 * MD;
+    const sz = cfg.size, kind = cfg.kind || 'ink', parts = [];
+    let px = 215 * sz * (lines.length > 2 ? 0.8 : 1);
+    const widest = Math.max(...lines.map(l => textWidth(l, 'grotesk', px, -0.02)));
+    if (widest > cfg.fw - 140) px *= (cfg.fw - 140) / widest;                    // long lines shrink to the frame
+    const sw = cfg.fw + 2 * MD, sh = cfg.fh + 2 * MD;
     const sheet = memo(['sheet', kind, cfg.seed, S].join(), () => {
       const c = mk(sw * S, sh * S), x = c.getContext('2d'); x.drawImage(paperTexture(sw * S, sh * S, kind, rngOf('sheet', cfg.seed, kind), S), 0, 0);
       return { cv: c, pw: sw * S / 2, ph: sh * S / 2, w: sw, h: sh };
@@ -314,15 +327,87 @@
     return { parts, tear: 'h', full: true };
   }
 
-  const LAYOUTS = { strip: layoutStrips, lower: layoutLower, title: layoutTitle, tiles: layoutTiles, chapter: layoutChapter };
+  // ------------------------------------------------------------------ the Shorts card: "new video now live, link in bio"
+  function drawPhoto(x, img, ox, oy, W, H, S, rng, bw) {            // a thumbnail printed inside a white paper border
+    const m = 16 * S, iw = Math.round(W - 2 * m), ih = Math.round(H - 2 * m), nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height;
+    const r = Math.max(iw / nw, ih / nh), sw = iw / r, sh = ih / r, c = mk(iw, ih), cx = c.getContext('2d');
+    cx.drawImage(img, (nw - sw) / 2, (nh - sh) / 2, sw, sh, 0, 0, iw, ih);
+    if (bw) {                                                        // photocopy look: grey, a bit more contrast
+      const d = cx.getImageData(0, 0, iw, ih), q = d.data;
+      for (let i = 0; i < q.length; i += 4) { const v = clamp((0.3 * q[i] + 0.59 * q[i + 1] + 0.11 * q[i + 2] - 128) * 1.35 + 134, 0, 255); q[i] = q[i + 1] = q[i + 2] = v; }
+      cx.putImageData(d, 0, 0);
+    }
+    x.drawImage(c, ox + m, oy + m);
+    x.drawImage(noiseCanvas(W, H, S, rng, 0.05), ox, oy);
+  }
+  const ARROW = { up: [0, -1, 0], right: [1, 0, 90], down: [0, 1, 180], left: [-1, 0, 270] };
+
+  function layoutCta(cfg, S, rng) {
+    const L = cfg.text.split('\n').map(t => t.trim()), eyebrow = L[0] || '', head = L[1] || '', call = L[2] || '', title = L[3] || '';
+    const sz = cfg.size, blocks = []; let slap = 0;
+    const plate = (txt, o) => {                                       // one torn plate with printed text
+      const tw = textWidth(txt, o.face, o.px, o.tracking), w = Math.max(60, tw + 2 * o.padx), h = o.px * (o.face === 'mono' ? 0.75 : 0.74) + 2 * o.pady;
+      const spr = makeScrap({ w, h, kind: o.kind, seed: cfg.seed + o.key, S, amp: 0.5,
+        content: (x, ox, oy, W, H, S2, r) => printText(x, txt, o.face, o.px * S2, colorOf(cfg, o.kind, o.color || 'auto'), o.tracking, ox + W / 2, oy + H / 2, S2, r) });
+      return { spr, x: 0, y: 0, rot: cfg.tilt == null ? o.tilt : o.tilt < 0 ? -cfg.tilt : cfg.tilt, slap: o.slap, boil: 0.8, shadow: 0.5, key: o.key, sgn: rng.sign(), w, h };
+    };
+    if (cfg.image) {                                                  // the video thumbnail, taped on
+      const w = Math.min(880, cfg.fw - 200) * sz, h = w * 9 / 16;
+      const spr = makeScrap({ w, h, kind: 'white', seed: cfg.seed + 'photo', S, amp: 0.4, content: (x, ox, oy, W, H, S2, r) => drawPhoto(x, cfg.image, ox, oy, W, H, S2, r, cfg.photoBW) });
+      blocks.push({ parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? -rng.uni(1.6, 3) : -cfg.tilt, slap, boil: 0.8, shadow: 0.55, key: 'photo', sgn: rng.sign(), w, h, tapeHere: true }], h, gap: -14 * sz });
+      slap += 2;
+    }
+    if (eyebrow) {
+      const p = plate(eyebrow.toUpperCase(), { face: 'mono', px: 38 * sz, tracking: 0.14, padx: 40 * sz, pady: 24 * sz, kind: cfg.kind || 'ink', key: 'eyebrow', tilt: 1.6, slap, color: cfg.textColor });
+      blocks.push({ parts: [p], h: p.h, gap: 30 * sz }); slap += 2;
+    }
+    const words = head.split(/\s+/).filter(Boolean).slice(0, 3);
+    if (words.length && cfg.headline === 'scrap') {                   // the big words on one torn scrap
+      const px = 170 * sz, lh = px * 1.0, lines = words.map(w => w.toUpperCase()), tw = Math.max(...lines.map(l => textWidth(l, 'grotesk', px, -0.03)));
+      const w = tw + 2 * 76 * sz, h = lines.length * lh + 2 * 46 * sz - (lh - px * 0.74), kind = cfg.kind3 && cfg.kind3 !== 'mixed' ? cfg.kind3 : 'paper';
+      const spr = makeScrap({ w, h, kind, seed: cfg.seed + 'head', S, amp: 0.6, content: (x, ox, oy, W, H, S2, r) => lines.forEach((l, i) =>
+        printText(x, l, 'grotesk', px * S2, colorOf(cfg, kind, cfg.textColor), -0.03, ox + W / 2, oy + H / 2 + (i - (lines.length - 1) / 2) * lh * S2, S2, r)) });
+      blocks.push({ parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? -rng.uni(1, 2.2) : cfg.tilt, slap, boil: 1, shadow: 0.55, key: 'head', sgn: rng.sign(), w, h }], h, gap: -12 * sz }); slap += 2;
+    } else if (words.length) {                                        // the big words as ransom-note tiles, one word a row
+      const rows = words.map(w => [...w.toUpperCase()]), k = sz * Math.min(1, (cfg.fw - 200) / (Math.max(...rows.map(rowWidth)) * sz));
+      const rowH = 272 * k, gapR = 16 * k, bh = rows.length * rowH + (rows.length - 1) * gapR, parts = []; let at = slap;
+      rows.forEach((chars, r) => {
+        const row = tileRow(Object.assign({}, cfg, { kind: cfg.kind3 || 'mixed' }), S, rng, chars, k, -bh / 2 + rowH / 2 + r * (rowH + gapR), at, 'r' + r + '-');
+        parts.push(...row.parts); at = row.last + 1;
+      });
+      blocks.push({ parts, h: bh, gap: -8 * sz }); slap = at + 1;
+    }
+    if (call) {
+      const p = plate(call.toUpperCase(), { face: 'mono', px: 46 * sz, tracking: 0.14, padx: 52 * sz, pady: 30 * sz, kind: cfg.kind2 || 'orange', key: 'call', tilt: -1.4, slap });
+      const parts = [p];
+      if (cfg.arrow && cfg.arrow !== 'none' && ARROW[cfg.arrow]) {    // a torn arrow that bounces towards the bio
+        const [dx, dy, rot] = ARROW[cfg.arrow], aw = 80 * sz, ah = 100 * sz, vert = rot % 180 === 0;
+        const spr = makeScrap({ w: aw, h: ah, kind: 'paper', seed: cfg.seed + 'arrow', S, amp: 0.45,
+          corners: [[aw / 2, 0], [aw, ah * 0.46], [aw * 0.68, ah * 0.46], [aw * 0.68, ah], [aw * 0.32, ah], [aw * 0.32, ah * 0.46], [0, ah * 0.46]] });
+        parts.push({ spr, x: p.w / 2 + 22 * sz + (vert ? aw : ah) / 2, y: 0, rot, slap: slap + 1, boil: 0.8, shadow: 0.5, key: 'arrow', sgn: 1, w: vert ? aw : ah, h: vert ? ah : aw, bounce: [dx, dy, 14 * sz] });
+      }
+      blocks.push({ parts, h: p.h, gap: 14 * sz }); slap += 2;
+    }
+    if (title) {
+      const p = plate(title, { face: 'grotesk', px: 52 * sz, tracking: -0.02, padx: 44 * sz, pady: 28 * sz, kind: 'white', key: 'title', tilt: 1.1, slap });
+      blocks.push({ parts: [p], h: p.h, gap: 0 }); slap += 2;
+    }
+    if (!blocks.length) { const p = plate(' ', { face: 'mono', px: 38, tracking: 0, padx: 40, pady: 24, kind: 'ink', key: 'eyebrow', tilt: 0, slap: 0 }); blocks.push({ parts: [p], h: p.h, gap: 0 }); }
+    const parts = []; let top = 0;
+    blocks.forEach((b) => { const yc = top + b.h / 2; b.parts.forEach(p => { p.y += yc; parts.push(p); }); top += b.h + b.gap; });
+    return { parts, tear: 'v' };
+  }
+
+  const LAYOUTS = { cta: layoutCta, strip: layoutStrips, lower: layoutLower, title: layoutTitle, tiles: layoutTiles, chapter: layoutChapter };
   const DEFAULTS = {
     strip: { kind: 'ink', kind2: 'orange', pos: 'bl', size: 1 }, lower: { kind: 'paper', kind2: 'orange', pos: 'bl', size: 1 },
     title: { kind: 'paper', pos: 'c', size: 1 }, tiles: { kind: 'mixed', pos: 'c', size: 1 }, chapter: { kind: 'ink', pos: 'c', size: 1 },
+    cta: { kind: 'ink', kind2: 'orange', pos: 'c', size: 1, frame: 'v', arrow: 'up', headline: 'tiles' },
   };
 
   // ------------------------------------------------------------------ accents: tape, little pop-out scraps, scribble underline
   function addTape(parts, group, S, cfg, rng) {
-    const main = parts.filter(p => p.slap !== null && !p.sheet)[0]; if (!main) return;
+    const main = parts.find(p => p.tapeHere) || parts.filter(p => p.slap !== null && !p.sheet)[0]; if (!main) return;
     const spr = makeScrap({ w: 74, h: 30, kind: 'tape', seed: cfg.seed + 'tape', S, amp: 0.45 });
     [[-1, -rng.uni(24, 38)], [1, rng.uni(22, 34)]].forEach(([side, rot], i) => {
       parts.push({ spr, x: main.x + side * (main.w / 2 - 14), y: main.y - main.h / 2 + 6, rot, slap: main.slap + 1 + i, boil: 0.6, shadow: 0.25, key: 'tape' + i, sgn: 1, w: 74, h: 30, alpha: 0.82 });
@@ -352,31 +437,39 @@
   // ------------------------------------------------------------------ clips
   function resolve(cfgIn) {
     const type = cfgIn.type && LAYOUTS[cfgIn.type] ? cfgIn.type : 'strip';
-    return Object.assign({ type, text: 'WEEK 07', textColor: 'auto', tilt: null, x: null, y: null, hold: 2.5, inStyle: 'slap', outStyle: 'tear',
-      boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, caps: true }, DEFAULTS[type], cfgIn, { type });
+    const cfg = Object.assign({ type, text: 'WEEK 07', textColor: 'auto', tilt: null, x: null, y: null, hold: 2.5, inStyle: 'slap', outStyle: 'tear',
+      boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, caps: true, frame: 'h', arrow: 'up', headline: 'tiles' }, DEFAULTS[type], cfgIn, { type });
+    cfg.fw = cfg.frame === 'v' ? 1080 : 1920; cfg.fh = cfg.frame === 'v' ? 1920 : 1080;
+    return cfg;
   }
-  const MARGIN_X = 96, MARGIN_Y = 90;
+  /** Safe margins: landscape uses title-safe edges. Vertical keeps clear of the top bar, the caption block and the side buttons
+   *  that Shorts, Reels and TikTok draw over the picture (approximate: about 11% top, 22% bottom, 7% sides). */
+  function margins(cfg) { return cfg.fw > cfg.fh ? { l: 96, r: 96, t: 90, b: 90 } : { l: 70, r: 70, t: 210, b: 430 }; }
   function anchor(cfg, gw, gh) {
     if (cfg.x != null && cfg.y != null) return [cfg.x, cfg.y];
-    const p = cfg.pos || 'c', cx = { l: MARGIN_X + gw / 2, c: W0 / 2, r: W0 - MARGIN_X - gw / 2 }, cy = { t: MARGIN_Y + gh / 2, c: H0 / 2, b: H0 - MARGIN_Y - gh / 2 };
-    const m = { bl: ['l', 'b'], bc: ['c', 'b'], br: ['r', 'b'], tl: ['l', 't'], tc: ['c', 't'], tr: ['r', 't'], c: ['c', 'c'], cl: ['l', 'c'], cr: ['r', 'c'] }[p] || ['c', 'c'];
-    return [cx[m[0]], cy[m[1]]];
+    const m = margins(cfg), p = cfg.pos || 'c';
+    const cx = { l: m.l + gw / 2, c: (m.l + cfg.fw - m.r) / 2, r: cfg.fw - m.r - gw / 2 }, cy = { t: m.t + gh / 2, c: (m.t + cfg.fh - m.b) / 2, b: cfg.fh - m.b - gh / 2 };
+    const k = { bl: ['l', 'b'], bc: ['c', 'b'], br: ['r', 'b'], tl: ['l', 't'], tc: ['c', 't'], tr: ['r', 't'], c: ['c', 'c'], cl: ['l', 'c'], cr: ['r', 'c'] }[p] || ['c', 'c'];
+    return [cx[k[0]], cy[k[1]]];
   }
 
   function buildClip(cfgIn) {
-    const cfg = resolve(cfgIn), S = cfg.scale, fps = cfg.fps, rng = rngOf('layout', cfg.seed, cfg.type);
+    const cfg = resolve(cfgIn), S = cfg.scale, fps = cfg.fps, FW = cfg.fw, FH = cfg.fh, rng = rngOf('layout', cfg.seed, cfg.type);
     const lay = LAYOUTS[cfg.type](cfg, S, rng), parts = lay.parts;
     // group bounds (relative to the group's own centre), then place the group
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     parts.forEach(p => { if (p.sheet) return; x0 = Math.min(x0, p.x - p.w / 2); x1 = Math.max(x1, p.x + p.w / 2); y0 = Math.min(y0, p.y - p.h / 2); y1 = Math.max(y1, p.y + p.h / 2); });
     const gw = x1 - x0, gh = y1 - y0, gcx = (x0 + x1) / 2, gcy = (y0 + y1) / 2;
-    if (!lay.full && gw > 1740 && !cfgIn._fitted) return buildClip(Object.assign({}, cfgIn, { size: (cfgIn.size || 1) * 1740 / gw, _fitted: true }));   // long text shrinks to fit the frame
+    if (!lay.full && !cfgIn._fitted) {                                // long text shrinks to fit the safe area
+      const m = margins(cfg), limW = FW - m.l - m.r, limH = FH - m.t - m.b;
+      if (gw > limW || gh > limH) return buildClip(Object.assign({}, cfgIn, { size: (cfgIn.size || 1) * Math.min(limW / gw, limH / gh) * 0.98, _fitted: true }));
+    }
     parts.forEach(p => { if (!p.sheet) { p.x -= gcx; p.y -= gcy; } });
-    const [ax, ay] = lay.full ? [W0 / 2, H0 / 2] : anchor(cfg, gw, gh);
+    const [ax, ay] = lay.full ? [FW / 2, FH / 2] : anchor(cfg, gw, gh);
     parts.forEach(p => { p.x += ax; p.y += ay; });
     const group = { w: gw, h: gh, cx: ax, cy: ay, x0: ax - gw / 2, x1: ax + gw / 2, y0: ay - gh / 2, y1: ay + gh / 2 };
     if (cfg.tape && !lay.full) addTape(parts, group, S, cfg, rng);
-    if (cfg.underline && cfg.type !== 'tiles') {
+    if (cfg.underline && cfg.type !== 'tiles' && cfg.type !== 'cta') {
       const base = lay.full ? parts.filter(p => !p.sheet).slice(-1)[0] : null;
       if (lay.full && base) { group.cx = base.x; group.y1 = base.y + base.h / 2 - 20; group.w = base.w; }
       addUnderline(parts, S, cfg, rng, group);
@@ -390,7 +483,7 @@
     const tearRng = rngOf('tear', cfg.seed, cfg.type);
     let cutPath = null;
     if (cfg.outStyle === 'tear') {
-      if (lay.tear === 'h') cutPath = tornPath([-MD - 40, H0 / 2 + tearRng.uni(-40, 40)], [W0 + MD + 40, H0 / 2 + tearRng.uni(-40, 40)], tearRng, 1.2, 1);
+      if (lay.tear === 'h') cutPath = tornPath([-MD - 40, FH / 2 + tearRng.uni(-40, 40)], [FW + MD + 40, FH / 2 + tearRng.uni(-40, 40)], tearRng, 1.2, 1);
       else { const cx = group.cx + tearRng.uni(-0.14, 0.14) * group.w, sk = tearRng.uni(-0.1, 0.1) * group.h; cutPath = tornPath([cx + sk, group.y0 - 80], [cx - sk, group.y1 + 80], tearRng, 1.2, 1); }
     }
 
@@ -398,7 +491,9 @@
       if (p.slap !== null && step < p.slap) return null;
       const k = p.slap === null ? 99 : step - p.slap, kick = cfg.inStyle === 'slap' && k === 0;
       const b = boil(cfg.seed, p.key, step, p.boil * cfg.boil);
-      return { x: p.x + b.dx, y: p.y + b.dy, rot: p.rot + b.dr + (kick ? 2.5 * p.sgn : 0), sc: kick ? 1.13 : 1, lift: kick ? 2.2 : 1 };
+      let ox = 0, oy = 0;
+      if (p.bounce) { const ph = [0, 0.55, 1, 0.55][k % 4] * p.bounce[2]; ox = p.bounce[0] * ph; oy = p.bounce[1] * ph; }   // a four-step hop towards the bio
+      return { x: p.x + b.dx + ox, y: p.y + b.dy + oy, rot: p.rot + b.dr + (kick ? 2.5 * p.sgn : 0), sc: kick ? 1.13 : 1, lift: kick ? 2.2 : 1 };
     }
     function drawParts(ctx, step, withShadow, S_) {
       parts.slice().forEach(p => {
@@ -422,7 +517,7 @@
 
     // the tear: render the group to a flat layer, then draw it as two torn halves
     function halves(ctx, step, oi) {
-      const g = mk(W0 * S, H0 * S), gx = g.getContext('2d');
+      const g = mk(FW * S, FH * S), gx = g.getContext('2d');
       drawParts(gx, step, false, S);
       const horiz = lay.tear === 'h', coreKey = cfg.kind && CORE[cfg.kind] ? cfg.kind : 'paper';
       const states = horiz
@@ -434,13 +529,13 @@
       const sides = [[1, st[0]], [-1, st[1]]];
       sides.forEach(([sg, [dx, dy, rot]], idx) => {
         const poly = path.concat([[p1[0] + nrm[0] * far * sg, p1[1] + nrm[1] * far * sg], [p0[0] + nrm[0] * far * sg, p0[1] + nrm[1] * far * sg]]);
-        const h = mk(W0 * S, H0 * S), hx = h.getContext('2d'); hx.scale(S, S);
+        const h = mk(FW * S, FH * S), hx = h.getContext('2d'); hx.scale(S, S);
         hx.save(); pathOf(hx, poly); hx.clip(); hx.setTransform(1, 0, 0, 1, 0, 0); hx.drawImage(g, 0, 0); hx.scale(S, S);
         const rr = rngOf('rim', cfg.seed, idx), a = jag(L, rr, [[2.8, 1]]), b = jag(L, rr, [[0.5, 1]]), off = path.map((pt, i) => {
           const w = Math.max(0.5, 2 + 3.4 * Math.abs(a[i]) + 1 * b[i]); return [pt[0] + nrm[0] * w * sg, pt[1] + nrm[1] * w * sg]; });
         hx.beginPath(); hx.moveTo(path[0][0], path[0][1]); path.forEach(pt => hx.lineTo(pt[0], pt[1])); for (let i = L - 1; i >= 0; i--) hx.lineTo(off[i][0], off[i][1]); hx.closePath();
         hx.fillStyle = CORE[coreKey]; hx.fill(); hx.restore();
-        const cxh = horiz ? W0 / 2 : (sg > 0 ? (group.x0 + path[(L / 2) | 0][0]) / 2 : (group.x1 + path[(L / 2) | 0][0]) / 2), cyh = horiz ? (sg > 0 ? H0 * 0.73 : H0 * 0.27) : group.cy;
+        const cxh = horiz ? FW / 2 : (sg > 0 ? (group.x0 + path[(L / 2) | 0][0]) / 2 : (group.x1 + path[(L / 2) | 0][0]) / 2), cyh = horiz ? (sg > 0 ? FH * 0.73 : FH * 0.27) : group.cy;
         ctx.save(); ctx.translate((cxh + dx) * S, (cyh + dy) * S); ctx.rotate(rot * Math.PI / 180); ctx.translate(-cxh * S, -cyh * S);
         const lift = 1 + oi * 0.5; ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 20 * lift * S; ctx.shadowOffsetX = 6 * lift * S; ctx.shadowOffsetY = 11 * lift * S;
         ctx.drawImage(h, 0, 0); ctx.restore();
@@ -455,7 +550,7 @@
     }
 
     function draw(ctx, i, dx, dy) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W0 * S, H0 * S); ctx.translate((dx || 0) * S, (dy || 0) * S);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, FW * S, FH * S); ctx.translate((dx || 0) * S, (dy || 0) * S);
       const step = Math.floor(i / fps * STEP_RATE + 1e-6);
       if (cfg.outStyle === 'tear' && step >= holdSteps) {
         const oi = step - holdSteps, horiz = lay.tear === 'h';
@@ -473,8 +568,8 @@
       drawParts(ctx, Math.min(step, holdSteps - 1), true, S);
       if (bits.length) drawBits(ctx, step);
     }
-    function still(ctx, dx, dy) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W0 * S, H0 * S); ctx.translate((dx || 0) * S, (dy || 0) * S); drawParts(ctx, lastSlap + 3, true, S); }
-    return { cfg, nFrames, fps, S, W: W0 * S, H: H0 * S, draw, still, group, steps: total, holdSteps, movable: !lay.full };
+    function still(ctx, dx, dy) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, FW * S, FH * S); ctx.translate((dx || 0) * S, (dy || 0) * S); drawParts(ctx, lastSlap + 3, true, S); }
+    return { cfg, nFrames, fps, S, W: FW * S, H: FH * S, FW, FH, draw, still, group, steps: total, holdSteps, movable: !lay.full };
   }
 
   root.PaperText = { buildClip, resolve, KINDS, DEFAULTS, W0, H0, fontsReady: () => Promise.all([

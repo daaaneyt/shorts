@@ -4,8 +4,9 @@
   const $ = (id) => document.getElementById(id);
   const PT = window.PaperText;
 
-  const SAMPLE = { strip: 'WEEK 07', lower: 'Adam\nTraining week 7 · The long run', title: 'The long run', tiles: '16.2 MI', chapter: 'WEEK 07\nThe long run' };
+  const SAMPLE = { cta: 'NEW YOUTUBE VIDEO\nNOW LIVE\nLINK IN BIO', strip: 'WEEK 07', lower: 'Adam\nTraining week 7 · The long run', title: 'The long run', tiles: '16.2 MI', chapter: 'WEEK 07\nThe long run' };
   const HELP = {
+    cta: 'Each box is one piece of the card. Leave a box empty to drop that piece. Each big word gets its own row of tiles.',
     strip: 'One line per strip. Capitalised for you.',
     lower: 'The first line is the name. Any other lines become the subtitle strip.',
     title: 'One or more lines.',
@@ -19,7 +20,9 @@
   const state = Object.assign({
     type: 'strip', text: SAMPLE.strip, kind: 'ink', kind2: 'orange', textColor: 'auto', size: 1, tilt: 'auto', pos: 'bl', x: null, y: null,
     hold: 2.5, inStyle: 'slap', outStyle: 'tear', boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, bg: 'checker',
+    frame: 'h', arrow: 'up', headline: 'tiles', kind3: 'mixed', photoBW: false, safe: false,
   }, load());
+  let thumbImg = null;   // the optional video thumbnail; kept in memory only
 
   function load() { try { return JSON.parse(localStorage.getItem('sub3piece-paper-text') || '{}'); } catch (e) { return {}; } }
   function save() { try { localStorage.setItem('sub3piece-paper-text', JSON.stringify(state)); } catch (e) { /* storage is optional */ } }
@@ -28,7 +31,8 @@
     type: state.type, text: state.text, kind: state.kind, kind2: state.kind2, textColor: state.textColor, size: state.size,
     tilt: state.tilt === 'flat' ? 0 : null, pos: state.pos, x: state.x, y: state.y, hold: state.hold, inStyle: state.inStyle,
     outStyle: state.outStyle, boil: state.boil, seed: state.seed, tape: state.tape, pop: state.pop, underline: state.underline,
-    fps: state.fps, scale: 1, caps: true,
+    fps: state.fps, scale: 1, caps: true, frame: state.frame, arrow: state.arrow, headline: state.headline, kind3: state.kind3,
+    photoBW: state.photoBW, image: state.type === 'cta' ? thumbImg : null,
   }, over || {});
 
   // ------------------------------------------------------------------ controls
@@ -43,20 +47,26 @@
     });
   }
   function syncControls() {
-    const t = state.type, tiles = t === 'tiles', chapter = t === 'chapter', two = t === 'strip' || t === 'lower';
+    const t = state.type, tiles = t === 'tiles', chapter = t === 'chapter', cta = t === 'cta', two = t === 'strip' || t === 'lower' || cta;
     document.querySelectorAll('#types .type').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.type === t)));
     $('text').value = state.text; $('textHelp').textContent = HELP[t];
+    $('text').hidden = cta; $('ctaFields').hidden = !cta; $('textLbl').textContent = cta ? 'Words on the card' : 'Text'; $('textLbl').htmlFor = cta ? 'c1' : 'text';
+    if (cta) { const L = state.text.split('\n'); ['c1', 'c2', 'c3', 'c4'].forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = L[i] || ''; }); }
     chips($('kind'), tiles ? ['mixed', 'paper', 'orange', 'white', 'ink'] : ['paper', 'ink', 'orange', 'white'], 'kind');
-    chips($('kind2'), ['paper', 'ink', 'orange', 'white'], 'kind2');
-    $('kindLbl').textContent = t === 'lower' ? 'Name paper' : t === 'strip' ? 'First strip' : chapter ? 'Sheet' : 'Paper';
-    $('kind2Lbl').textContent = t === 'lower' ? 'Subtitle paper' : 'Second strip';
+    chips($('kind2'), ['paper', 'ink', 'orange', 'white'], 'kind2'); chips($('kind3'), ['mixed', 'paper', 'orange', 'white', 'ink'], 'kind3');
+    $('kindLbl').textContent = cta ? 'Small label paper' : t === 'lower' ? 'Name paper' : t === 'strip' ? 'First strip' : chapter ? 'Sheet' : 'Paper';
+    $('kind2Lbl').textContent = cta ? 'Call-to-action paper' : t === 'lower' ? 'Subtitle paper' : 'Second strip';
+    $('kind3Wrap').hidden = !cta; $('ctaOpts').hidden = !cta;
     $('kind2Wrap').hidden = !two;
     pressed($('textColor'), state.textColor); pressed($('tilt'), state.tilt); pressed($('inStyle'), state.inStyle); pressed($('outStyle'), state.outStyle); pressed($('bgs'), state.bg);
     $('size').value = state.size; $('sizeO').textContent = Math.round(state.size * 100) + '%';
     $('hold').value = state.hold; $('boil').value = state.boil; $('boilO').textContent = Number(state.boil).toFixed(1);
     $('tape').checked = state.tape; $('pop').checked = state.pop; $('underline').checked = state.underline;
-    $('tape').disabled = chapter; $('pop').disabled = chapter; $('underline').disabled = tiles;
+    $('tape').disabled = chapter; $('pop').disabled = chapter; $('underline').disabled = tiles || cta;
+    pressed($('arrow'), state.arrow); pressed($('headline'), state.headline); pressed($('frame'), state.frame); $('photoBW').checked = state.photoBW; $('safe').checked = state.safe;
+    $('thumbClear').hidden = !thumbImg; screen.dataset.frame = state.frame; updateSafe();
     $('fps').value = String(state.fps); $('res').value = String(state.scale);
+    $('res').options[0].textContent = state.frame === 'v' ? '1080 × 1920' : '1920 × 1080'; $('res').options[1].textContent = state.frame === 'v' ? '2160 × 3840' : '3840 × 2160';
     document.querySelectorAll('#pos button').forEach((b) => { b.setAttribute('aria-pressed', String(state.x == null && b.dataset.p === state.pos)); b.disabled = chapter; });
     $('screen').dataset.bg = state.bg;
   }
@@ -77,6 +87,7 @@
       if (my !== gen) return;
       try { clip = PT.buildClip(cfgOf()); } catch (e) { console.error(e); $('busy').textContent = 'Could not build'; return; }
       $('busy').hidden = true; $('busy').textContent = 'Building';
+      if (cv.width !== clip.W || cv.height !== clip.H) { cv.width = clip.W; cv.height = clip.H; }
       dragOff = [0, 0]; $('scrub').max = String(clip.nFrames - 1); startT = performance.now();
       screen.classList.toggle('movable', clip.movable); $('hint').hidden = !clip.movable;
       draw();
@@ -103,17 +114,37 @@
 
   // drag to place
   let dragging = false, dragStart = null;
-  function design(e) { const r = screen.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 1920, (e.clientY - r.top) / r.height * 1080]; }
+  function design(e) { const r = screen.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * clip.FW, (e.clientY - r.top) / r.height * clip.FH]; }
   screen.addEventListener('pointerdown', (e) => { if (!clip || !clip.movable) return; dragging = true; dragStart = design(e); screen.setPointerCapture(e.pointerId); screen.classList.add('dragging'); });
   screen.addEventListener('pointermove', (e) => {
     if (!dragging) return; const p = design(e), g = clip.group;
-    dragOff = [Math.max(-g.cx, Math.min(1920 - g.cx, p[0] - dragStart[0])), Math.max(-g.cy, Math.min(1080 - g.cy, p[1] - dragStart[1]))];
+    dragOff = [Math.max(-g.cx, Math.min(clip.FW - g.cx, p[0] - dragStart[0])), Math.max(-g.cy, Math.min(clip.FH - g.cy, p[1] - dragStart[1]))];
   });
   function endDrag() {
     if (!dragging) return; dragging = false; screen.classList.remove('dragging');
     if (Math.abs(dragOff[0]) + Math.abs(dragOff[1]) > 2) { state.x = Math.round(clip.group.cx + dragOff[0]); state.y = Math.round(clip.group.cy + dragOff[1]); syncControls(); changed(); }
   }
   screen.addEventListener('pointerup', endDrag); screen.addEventListener('pointercancel', endDrag);
+
+  // safe-area guide: the zones that platform UI draws over the picture (approximate)
+  function updateSafe() {
+    const v = state.frame === 'v', fw = v ? 1080 : 1920, fh = v ? 1920 : 1080, m = v ? { l: 70, r: 70, t: 210, b: 430 } : { l: 96, r: 96, t: 90, b: 90 }, g = $('safeGuide');
+    g.style.setProperty('--st', (m.t / fh * 100) + '%'); g.style.setProperty('--sb', (m.b / fh * 100) + '%'); g.style.setProperty('--sl', (m.l / fw * 100) + '%'); g.style.setProperty('--sr', (m.r / fw * 100) + '%');
+    g.querySelector('em').hidden = !v; g.hidden = !state.safe;
+  }
+  $('safe').addEventListener('change', (e) => { state.safe = e.target.checked; updateSafe(); save(); });
+
+  // the optional video thumbnail
+  $('thumb').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => { thumbImg = im; URL.revokeObjectURL(url); $('thumbHelp').textContent = 'Using ' + f.name + '. It stays in this browser.'; syncControls(); changed(); };
+    im.onerror = () => { URL.revokeObjectURL(url); $('thumbHelp').textContent = 'That file could not be read as an image. Try a PNG or JPG.'; };
+    im.src = url;
+  });
+  $('thumbClear').addEventListener('click', () => { thumbImg = null; $('thumb').value = ''; $('thumbHelp').textContent = 'Your image stays in this browser. It is cropped to 16:9 and taped on above the text.'; syncControls(); changed(); });
+  $('photoBW').addEventListener('change', (e) => { state.photoBW = e.target.checked; changed(); });
+  ['c1', 'c2', 'c3', 'c4'].forEach((id, i) => $(id).addEventListener('input', () => { const L = ['c1', 'c2', 'c3', 'c4'].map((k) => $(k).value.replace(/\n/g, ' ')); while (L.length && !L[L.length - 1]) L.pop(); state.text = L.join('\n'); changed(); }));
 
   // ------------------------------------------------------------------ export
   let downloads = null, canSave = true;
@@ -150,7 +181,7 @@
     e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, offset, true);
     return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
   }
-  const slug = (s) => (s.split(/\n|\/\//)[0] || 'clip').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'clip';
+  const slug = (s) => (s.split(/\n|\/\//)[state.type === 'cta' && s.split(/\n|\/\//)[1] ? 1 : 0] || 'clip').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'clip';
   const png = (canvas) => new Promise((res) => canvas.toBlob(res, 'image/png'));
 
   async function renderFrames(cfg, label, prefix, onTick) {
@@ -162,7 +193,7 @@
     }
     return { files, clip: c };
   }
-  const guide = (c) => 'sub3piece Paper text\n\nPNG sequence with transparency, ' + c.W + 'x' + c.H + ', ' + c.fps + ' fps.\n\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence", Import. Then right-click the clip > Modify > Interpret Footage > Assume this frame rate: ' + c.fps + '.\nDaVinci Resolve: Media page, drag the folder into the media pool. It appears as one clip. Set Clip Attributes > Frame rate to ' + c.fps + ' if it picked another.\n';
+  const guide = (c) => 'sub3piece Paper text\n\nPNG sequence with transparency, ' + c.W + 'x' + c.H + ', ' + c.fps + ' fps.\n' + (c.fps === 10 ? 'The animation moves in 10 steps a second, so this looks the same on a 30 fps timeline: set the clip to 10 fps and it holds each frame for three.\n' : '') + '\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence", Import. Then right-click the clip > Modify > Interpret Footage > Assume this frame rate: ' + c.fps + '.\nDaVinci Resolve: Media page, drag the folder into the media pool. It appears as one clip. Set Clip Attributes > Frame rate to ' + c.fps + ' if it picked another.\n';
 
   let busy = false;
   async function guard(fn) {
@@ -174,15 +205,15 @@
     } finally { busy = false; $('prog').hidden = true; setExportEnabled(canSave); }
   }
   $('exClip').addEventListener('click', () => guard(async () => {
-    const cfg = cfgOf({ scale: state.scale, fps: state.fps }), name = cfg.type + '-' + slug(cfg.text);
+    const cfg = cfgOf({ scale: state.scale, fps: state.fps }), name = (cfg.type === 'cta' ? 'shorts-card' : cfg.type) + '-' + slug(cfg.text);
     const { files, clip: c } = await renderFrames(cfg, name, name, (i, n) => { $('prog').value = i / n; setStatus('Rendering frame ' + i + ' of ' + n + '…'); });
     files.push({ name: 'READ-ME.txt', data: new TextEncoder().encode(guide(c)) });
     const blob = makeZip(files.map((f) => Object.assign({}, f, { name: name + '/' + f.name })));
-    await saveFile(name + '.zip', blob); setStatus('Saved ' + name + '.zip: ' + c.nFrames + ' frames, ' + (blob.size / 1048576).toFixed(1) + ' MB.', 'ok');
+    await saveFile(name + '.zip', blob); setStatus('Saved ' + name + '.zip: ' + c.nFrames + ' frames, ' + (blob.size / 1048576).toFixed(1) + ' MB.' + (blob.size > 40 * 1048576 && c.fps > 10 ? ' Tip: 10 fps gives a file about 3 times smaller that looks the same, because the animation moves 10 steps a second.' : ''), 'ok');
   }));
   $('exStill').addEventListener('click', () => guard(async () => {
     const cfg = cfgOf({ scale: state.scale }), c = PT.buildClip(cfg), cvs = document.createElement('canvas'); cvs.width = c.W; cvs.height = c.H; c.still(cvs.getContext('2d'));
-    const name = cfg.type + '-' + slug(cfg.text) + '.png'; await saveFile(name, await png(cvs)); setStatus('Saved ' + name + '.', 'ok');
+    const name = (cfg.type === 'cta' ? 'shorts-card' : cfg.type) + '-' + slug(cfg.text) + '.png'; await saveFile(name, await png(cvs)); setStatus('Saved ' + name + '.', 'ok');
   }));
   $('exBatch').addEventListener('click', () => guard(async () => {
     const jobs = $('batchText').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const [t, h] = l.split('|'); return { text: t.split('//').map((s) => s.trim()).join('\n'), hold: h && +h > 0 ? +h : state.hold }; });
@@ -202,10 +233,12 @@
     const b = e.target.closest('.type'); if (!b) return; const prev = state.type, next = b.dataset.type; if (prev === next) return;
     if (state.text === SAMPLE[prev]) state.text = SAMPLE[next];
     const d = PT.DEFAULTS[next]; state.kind = d.kind; state.kind2 = d.kind2 || state.kind2; state.pos = d.pos; state.x = state.y = null; state.type = next;
+    if (next === 'cta') { state.frame = 'v'; state.kind3 = 'mixed'; } else if (prev === 'cta') state.frame = 'h';
     syncControls(); changed();
   });
   $('text').addEventListener('input', (e) => { state.text = e.target.value; changed(); });
-  seg('textColor', 'textColor'); seg('tilt', 'tilt'); seg('inStyle', 'inStyle'); seg('outStyle', 'outStyle');
+  seg('textColor', 'textColor'); seg('tilt', 'tilt'); seg('inStyle', 'inStyle'); seg('outStyle', 'outStyle'); seg('arrow', 'arrow'); seg('headline', 'headline');
+  $('frame').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || state.frame === b.dataset.v) return; state.frame = b.dataset.v; state.x = state.y = null; syncControls(); changed(); });
   $('size').addEventListener('input', (e) => { state.size = +e.target.value; $('sizeO').textContent = Math.round(state.size * 100) + '%'; changed(); });
   $('hold').addEventListener('input', (e) => { const v = +e.target.value; if (v > 0) { state.hold = v; changed(); } });
   $('boil').addEventListener('input', (e) => { state.boil = +e.target.value; $('boilO').textContent = state.boil.toFixed(1); changed(); });

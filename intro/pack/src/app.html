@@ -8,6 +8,7 @@
   <section class="stage" aria-label="Preview">
     <div class="screen" id="screen" data-bg="checker">
       <canvas id="cv" width="1920" height="1080" aria-label="Animated preview of the element"></canvas>
+      <div class="safeguide" id="safeGuide" hidden aria-hidden="true"><i class="sg t"></i><i class="sg b"><em>Caption and buttons zone, approximate</em></i><i class="sg l"></i><i class="sg r"></i></div>
       <span class="hint" id="hint" hidden>Drag to move</span>
       <span class="busy" id="busy" hidden>Building</span>
     </div>
@@ -18,6 +19,7 @@
       </button>
       <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Scrub through the clip">
       <span class="tc" id="tc">0.00 / 0.00 s</span>
+      <label class="check" id="safeWrap"><input type="checkbox" id="safe"> Safe area</label>
       <div class="seg" id="bgs" role="group" aria-label="Preview background">
         <button type="button" data-bg="checker" aria-pressed="true">Clear</button>
         <button type="button" data-bg="dark" aria-pressed="false">Dark</button>
@@ -29,7 +31,7 @@
     <div class="export">
       <div class="row">
         <div class="field" style="flex:1 1 120px"><label class="lbl" for="fps">Frame rate</label>
-          <select id="fps"><option value="30">30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div>
+          <select id="fps"><option value="30">30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option><option value="50">50 fps</option><option value="60">60 fps</option><option value="10">10 fps (smallest, same look)</option></select></div>
         <div class="field" style="flex:1 1 150px"><label class="lbl" for="res">Frame size</label>
           <select id="res"><option value="1">1920 × 1080</option><option value="2">3840 × 2160</option></select></div>
       </div>
@@ -52,6 +54,7 @@
     <fieldset class="grp">
       <legend>Element</legend>
       <div class="types" id="types">
+        <button class="type" type="button" data-type="cta" aria-pressed="false"><b>Shorts card</b><span>"New video live, link in bio" for Shorts, Reels and TikTok.</span></button>
         <button class="type" type="button" data-type="strip" aria-pressed="true"><b>Strip</b><span>Mono caps on torn strips, one line each.</span></button>
         <button class="type" type="button" data-type="lower" aria-pressed="false"><b>Lower third</b><span>A name plate with a subtitle strip.</span></button>
         <button class="type" type="button" data-type="title" aria-pressed="false"><b>Title</b><span>A big headline on a torn scrap.</span></button>
@@ -61,14 +64,21 @@
     </fieldset>
 
     <div class="field">
-      <label class="lbl" for="text">Text</label>
+      <label class="lbl" for="text" id="textLbl">Text</label>
       <textarea id="text" rows="3" spellcheck="false"></textarea>
+      <div class="cta-fields" id="ctaFields" hidden>
+        <label class="sub" for="c1">Small label</label><input type="text" id="c1" maxlength="60" autocomplete="off">
+        <label class="sub" for="c2">Big words <span>(one row of tiles per word)</span></label><input type="text" id="c2" maxlength="40" autocomplete="off">
+        <label class="sub" for="c3">Call to action</label><input type="text" id="c3" maxlength="60" autocomplete="off">
+        <label class="sub" for="c4">Video title <span>(optional)</span></label><input type="text" id="c4" maxlength="80" autocomplete="off">
+      </div>
       <p class="help" id="textHelp"></p>
     </div>
 
     <fieldset class="grp">
       <legend>Look</legend>
       <div class="field"><span class="lbl" id="kindLbl">Paper</span><div class="chips" id="kind" role="group" aria-labelledby="kindLbl"></div></div>
+      <div class="field" id="kind3Wrap" hidden><span class="lbl" id="kind3Lbl">Big words paper</span><div class="chips" id="kind3" role="group" aria-labelledby="kind3Lbl"></div></div>
       <div class="field" id="kind2Wrap"><span class="lbl" id="kind2Lbl">Second paper</span><div class="chips" id="kind2" role="group" aria-labelledby="kind2Lbl"></div></div>
       <div class="field"><span class="lbl" id="tcLbl">Text colour</span>
         <div class="seg" id="textColor" role="group" aria-labelledby="tcLbl">
@@ -83,8 +93,24 @@
       </div>
     </fieldset>
 
+    <fieldset class="grp" id="ctaOpts" hidden>
+      <legend>Shorts card</legend>
+      <div class="two">
+        <div class="field"><span class="lbl" id="arrLbl">Arrow</span>
+          <div class="seg" id="arrow" role="group" aria-labelledby="arrLbl"><button type="button" data-v="up" aria-pressed="true" aria-label="Up">&uarr;</button><button type="button" data-v="right" aria-pressed="false" aria-label="Right">&rarr;</button><button type="button" data-v="down" aria-pressed="false" aria-label="Down">&darr;</button><button type="button" data-v="left" aria-pressed="false" aria-label="Left">&larr;</button><button type="button" data-v="none" aria-pressed="false">None</button></div></div>
+        <div class="field"><span class="lbl" id="hdLbl">Big words</span>
+          <div class="seg" id="headline" role="group" aria-labelledby="hdLbl"><button type="button" data-v="tiles" aria-pressed="true">Tiles</button><button type="button" data-v="scrap" aria-pressed="false">One scrap</button></div></div>
+      </div>
+      <div class="field"><label class="lbl" for="thumb">Video thumbnail <span class="opt">(optional)</span></label>
+        <div class="row-inline"><input type="file" id="thumb" accept="image/*"><button class="btn small" id="thumbClear" type="button" hidden>Remove</button></div>
+        <label class="check"><input type="checkbox" id="photoBW"> Photocopy look (black and white)</label>
+        <p class="help" id="thumbHelp">Your image stays in this browser. It is cropped to 16:9 and taped on above the text.</p></div>
+    </fieldset>
+
     <fieldset class="grp">
       <legend>Placement</legend>
+      <div class="field"><span class="lbl" id="frameLbl">Frame</span>
+        <div class="seg" id="frame" role="group" aria-labelledby="frameLbl"><button type="button" data-v="h" aria-pressed="true">Landscape 16:9</button><button type="button" data-v="v" aria-pressed="false">Vertical 9:16</button></div></div>
       <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
         <div class="pos" id="pos" role="group" aria-label="Position in the frame"></div>
         <p class="help" style="flex:1 1 180px">Pick a spot, or drag the element in the preview. Lower-left keeps clear of title-safe edges.</p>

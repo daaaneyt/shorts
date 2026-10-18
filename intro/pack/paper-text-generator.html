@@ -113,6 +113,23 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
   .top .note { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* Shorts card extras */
+.cta-fields { display: grid; gap: 6px; }
+.cta-fields .sub { font: 400 11px/1.2 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.cta-fields .sub span, .opt { text-transform: none; letter-spacing: 0; font-family: var(--font-body); color: var(--muted); }
+.cta-fields input[type=text] { width: 100%; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); padding: 9px 10px; font: 400 15px/1.3 var(--font-body); min-width: 0; }
+.row-inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row-inline input[type=file] { flex: 1 1 200px; min-width: 0; font-size: 13px; }
+.btn.small { padding: 7px 10px; font-size: 12px; }
+.screen[data-frame="v"] { aspect-ratio: 9 / 16; height: min(78vh, 760px); width: auto; justify-self: center; max-width: 100%; }
+.safeguide { position: absolute; inset: 0; pointer-events: none; }
+.safeguide .sg { position: absolute; background: rgba(255, 90, 44, 0.20); display: block; }
+.safeguide .t { left: 0; right: 0; top: 0; height: var(--st, 8%); }
+.safeguide .b { left: 0; right: 0; bottom: 0; height: var(--sb, 8%); display: grid; place-items: center; }
+.safeguide .l { left: 0; top: var(--st, 8%); bottom: var(--sb, 8%); width: var(--sl, 5%); }
+.safeguide .r { right: 0; top: var(--st, 8%); bottom: var(--sb, 8%); width: var(--sr, 5%); }
+.safeguide em { font: 400 10px/1.2 var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: #fff; background: rgba(12, 13, 16, 0.55); padding: 4px 6px; border-radius: var(--r); font-style: normal; text-align: center; }
 </style>
 <header class="top">
   <span class="wm">sub<b>3</b>piece</span>
@@ -124,6 +141,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
   <section class="stage" aria-label="Preview">
     <div class="screen" id="screen" data-bg="checker">
       <canvas id="cv" width="1920" height="1080" aria-label="Animated preview of the element"></canvas>
+      <div class="safeguide" id="safeGuide" hidden aria-hidden="true"><i class="sg t"></i><i class="sg b"><em>Caption and buttons zone, approximate</em></i><i class="sg l"></i><i class="sg r"></i></div>
       <span class="hint" id="hint" hidden>Drag to move</span>
       <span class="busy" id="busy" hidden>Building</span>
     </div>
@@ -134,6 +152,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       </button>
       <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Scrub through the clip">
       <span class="tc" id="tc">0.00 / 0.00 s</span>
+      <label class="check" id="safeWrap"><input type="checkbox" id="safe"> Safe area</label>
       <div class="seg" id="bgs" role="group" aria-label="Preview background">
         <button type="button" data-bg="checker" aria-pressed="true">Clear</button>
         <button type="button" data-bg="dark" aria-pressed="false">Dark</button>
@@ -145,7 +164,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     <div class="export">
       <div class="row">
         <div class="field" style="flex:1 1 120px"><label class="lbl" for="fps">Frame rate</label>
-          <select id="fps"><option value="30">30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option><option value="50">50 fps</option><option value="60">60 fps</option></select></div>
+          <select id="fps"><option value="30">30 fps</option><option value="25">25 fps</option><option value="24">24 fps</option><option value="50">50 fps</option><option value="60">60 fps</option><option value="10">10 fps (smallest, same look)</option></select></div>
         <div class="field" style="flex:1 1 150px"><label class="lbl" for="res">Frame size</label>
           <select id="res"><option value="1">1920 × 1080</option><option value="2">3840 × 2160</option></select></div>
       </div>
@@ -168,6 +187,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     <fieldset class="grp">
       <legend>Element</legend>
       <div class="types" id="types">
+        <button class="type" type="button" data-type="cta" aria-pressed="false"><b>Shorts card</b><span>"New video live, link in bio" for Shorts, Reels and TikTok.</span></button>
         <button class="type" type="button" data-type="strip" aria-pressed="true"><b>Strip</b><span>Mono caps on torn strips, one line each.</span></button>
         <button class="type" type="button" data-type="lower" aria-pressed="false"><b>Lower third</b><span>A name plate with a subtitle strip.</span></button>
         <button class="type" type="button" data-type="title" aria-pressed="false"><b>Title</b><span>A big headline on a torn scrap.</span></button>
@@ -177,14 +197,21 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     </fieldset>
 
     <div class="field">
-      <label class="lbl" for="text">Text</label>
+      <label class="lbl" for="text" id="textLbl">Text</label>
       <textarea id="text" rows="3" spellcheck="false"></textarea>
+      <div class="cta-fields" id="ctaFields" hidden>
+        <label class="sub" for="c1">Small label</label><input type="text" id="c1" maxlength="60" autocomplete="off">
+        <label class="sub" for="c2">Big words <span>(one row of tiles per word)</span></label><input type="text" id="c2" maxlength="40" autocomplete="off">
+        <label class="sub" for="c3">Call to action</label><input type="text" id="c3" maxlength="60" autocomplete="off">
+        <label class="sub" for="c4">Video title <span>(optional)</span></label><input type="text" id="c4" maxlength="80" autocomplete="off">
+      </div>
       <p class="help" id="textHelp"></p>
     </div>
 
     <fieldset class="grp">
       <legend>Look</legend>
       <div class="field"><span class="lbl" id="kindLbl">Paper</span><div class="chips" id="kind" role="group" aria-labelledby="kindLbl"></div></div>
+      <div class="field" id="kind3Wrap" hidden><span class="lbl" id="kind3Lbl">Big words paper</span><div class="chips" id="kind3" role="group" aria-labelledby="kind3Lbl"></div></div>
       <div class="field" id="kind2Wrap"><span class="lbl" id="kind2Lbl">Second paper</span><div class="chips" id="kind2" role="group" aria-labelledby="kind2Lbl"></div></div>
       <div class="field"><span class="lbl" id="tcLbl">Text colour</span>
         <div class="seg" id="textColor" role="group" aria-labelledby="tcLbl">
@@ -199,8 +226,24 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       </div>
     </fieldset>
 
+    <fieldset class="grp" id="ctaOpts" hidden>
+      <legend>Shorts card</legend>
+      <div class="two">
+        <div class="field"><span class="lbl" id="arrLbl">Arrow</span>
+          <div class="seg" id="arrow" role="group" aria-labelledby="arrLbl"><button type="button" data-v="up" aria-pressed="true" aria-label="Up">&uarr;</button><button type="button" data-v="right" aria-pressed="false" aria-label="Right">&rarr;</button><button type="button" data-v="down" aria-pressed="false" aria-label="Down">&darr;</button><button type="button" data-v="left" aria-pressed="false" aria-label="Left">&larr;</button><button type="button" data-v="none" aria-pressed="false">None</button></div></div>
+        <div class="field"><span class="lbl" id="hdLbl">Big words</span>
+          <div class="seg" id="headline" role="group" aria-labelledby="hdLbl"><button type="button" data-v="tiles" aria-pressed="true">Tiles</button><button type="button" data-v="scrap" aria-pressed="false">One scrap</button></div></div>
+      </div>
+      <div class="field"><label class="lbl" for="thumb">Video thumbnail <span class="opt">(optional)</span></label>
+        <div class="row-inline"><input type="file" id="thumb" accept="image/*"><button class="btn small" id="thumbClear" type="button" hidden>Remove</button></div>
+        <label class="check"><input type="checkbox" id="photoBW"> Photocopy look (black and white)</label>
+        <p class="help" id="thumbHelp">Your image stays in this browser. It is cropped to 16:9 and taped on above the text.</p></div>
+    </fieldset>
+
     <fieldset class="grp">
       <legend>Placement</legend>
+      <div class="field"><span class="lbl" id="frameLbl">Frame</span>
+        <div class="seg" id="frame" role="group" aria-labelledby="frameLbl"><button type="button" data-v="h" aria-pressed="true">Landscape 16:9</button><button type="button" data-v="v" aria-pressed="false">Vertical 9:16</button></div></div>
       <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap">
         <div class="pos" id="pos" role="group" aria-label="Position in the frame"></div>
         <p class="help" style="flex:1 1 180px">Pick a spot, or drag the element in the preview. Lower-left keeps clear of title-safe edges.</p>
@@ -358,15 +401,17 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     }
     return pts;
   }
-  function tornRect(x, y, w, h, rng, amp, S) {
-    const c = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]], poly = [];
-    for (let i = 0; i < 4; i++) {
-      const a = c[i], b = c[(i + 1) % 4], ln = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  /** Torn edges along every side of a polygon given by its corners. */
+  function tornPoly(c, rng, amp, S) {
+    const poly = [];
+    for (let i = 0; i < c.length; i++) {
+      const a = c[i], b = c[(i + 1) % c.length], ln = Math.hypot(b[0] - a[0], b[1] - a[1]);
       const p = tornPath(a, b, rng, amp * Math.min(1, ln / (260 * S)), S);
       for (let j = 0; j < p.length - 1; j++) poly.push(p[j]);
     }
     return poly;
   }
+  function tornRect(x, y, w, h, rng, amp, S) { return tornPoly([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], rng, amp, S); }
   /** The white paper core that shows past the printed face along a tear: the polygon pushed outward by a noisy width. */
   function offsetPoly(poly, rng, S, k) {
     const n = poly.length; let A = 0;
@@ -416,7 +461,9 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     const S = o.S, pad = Math.round(24 * S), W = Math.round(o.w * S), H = Math.round(o.h * S);
     const cw = W + 2 * pad + Math.round(16 * S), ch = H + 2 * pad + Math.round(16 * S), ox = (cw - W) / 2, oy = (ch - H) / 2;
     const rng = rngOf('scrap', o.seed), kind = o.kind;
-    const poly = tornRect(ox, oy, W, H, rng, o.amp == null ? 0.5 : o.amp, S), outer = offsetPoly(poly, rng, S, 1);
+    const amp = o.amp == null ? 0.5 : o.amp;
+    const poly = o.corners ? tornPoly(o.corners.map(([px, py]) => [ox + px * S, oy + py * S]), rng, amp, S) : tornRect(ox, oy, W, H, rng, amp, S);
+    const outer = offsetPoly(poly, rng, S, 1);
     const c = mk(cw, ch), x = c.getContext('2d');
     pathOf(x, outer); x.fillStyle = CORE[kind]; x.fill();
     x.save(); pathOf(x, poly); x.clip();
@@ -508,34 +555,43 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     return { parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? rng.uni(-1.8, 1.8) : cfg.tilt, slap: 0, boil: 1, shadow: 0.5, key: 'T', sgn: rng.sign(), w, h }], tear: 'v' };
   }
 
-  function layoutTiles(cfg, S, rng) {
-    const raw = cfg.text.split('\n')[0] || ' ', chars = [...raw], sz = cfg.size;
-    const cycleK = ['paper', 'orange', 'white', 'orange', 'paper'], cycleF = ['grotesk', 'mono', 'grotesk', 'grotesk', 'mono'];
-    const dims = chars.map(c => c === ':' || c === '.' ? 76 : c === ' ' ? 70 : 196);
-    const total = dims.reduce((a, b) => a + b + 15, -15), fit = Math.min(1, 1760 / (total * sz)), k = sz * fit;
-    const parts = []; let x = -total * k / 2, ti = 0;
+  const CYCLE_K = ['paper', 'orange', 'white', 'orange', 'paper'], CYCLE_F = ['grotesk', 'mono', 'grotesk', 'grotesk', 'mono'];
+  const tileDims = (chars) => chars.map(c => c === ':' || c === '.' ? 76 : c === ' ' ? 70 : 196);
+  const rowWidth = (chars) => tileDims(chars).reduce((a, b) => a + b + 15, -15);
+  /** One row of ransom-note tiles centred on x = 0 at height yc. k scales it; slap0 is the step its first character lands. */
+  function tileRow(cfg, S, rng, chars, k, yc, slap0, tag) {
+    const dims = tileDims(chars), total = rowWidth(chars), parts = []; let x = -total * k / 2, ti = 0;
     chars.forEach((ch, i) => {
       const w = dims[i] * k;
       if (ch === ' ') { x += w + 15 * k; return; }
       if (ch === ':' || ch === '.') {
-        const spr = textSprite(ch, 'grotesk', 210 * k, TEXT.orange, 0, S, cfg.seed + 'c' + i);
-        parts.push({ spr, x: x + w / 2, y: 0, rot: rng.uni(-5, 5), slap: i, boil: 1, shadow: 0, key: 'c' + i, sgn: rng.sign(), w: spr.w, h: spr.h });
+        const spr = textSprite(ch, 'grotesk', 210 * k, TEXT.orange, 0, S, cfg.seed + tag + 'c' + i);
+        parts.push({ spr, x: x + w / 2, y: yc, rot: rng.uni(-5, 5), slap: slap0 + i, boil: 1, shadow: 0, key: tag + 'c' + i, sgn: rng.sign(), w: spr.w, h: spr.h });
       } else {
-        const kind = cfg.kind === 'mixed' || !cfg.kind ? cycleK[ti % 5] : cfg.kind, face = cycleF[ti % 5], px = (face === 'grotesk' ? 236 : 214) * k, h = 272 * k, txt = ch;
-        const spr = makeScrap({ w, h, kind, seed: cfg.seed + 't' + i, S, amp: 0.35,
+        const kind = cfg.kind === 'mixed' || !cfg.kind ? CYCLE_K[ti % 5] : cfg.kind, face = CYCLE_F[ti % 5], px = (face === 'grotesk' ? 236 : 214) * k, h = 272 * k, txt = ch;
+        const spr = makeScrap({ w, h, kind, seed: cfg.seed + tag + 't' + i, S, amp: 0.35,
           content: (xx, ox, oy, W, H, S2, r) => printText(xx, txt, face, px * S2, colorOf(cfg, kind, cfg.textColor), 0, ox + W / 2, oy + H / 2, S2, r) });
-        parts.push({ spr, x: x + w / 2, y: rng.uni(-18, 18) * k, rot: rng.uni(-7, 7), slap: i, boil: 1, shadow: 0.55, key: 't' + i, sgn: rng.sign(), w, h });
+        parts.push({ spr, x: x + w / 2, y: yc + rng.uni(-18, 18) * k, rot: rng.uni(-7, 7), slap: slap0 + i, boil: 1, shadow: 0.55, key: tag + 't' + i, sgn: rng.sign(), w, h });
         ti++;
       }
       x += w + 15 * k;
     });
-    return { parts, tear: 'v' };
+    return { parts, w: total * k, h: 272 * k, last: slap0 + chars.length - 1 };
+  }
+
+  function layoutTiles(cfg, S, rng) {
+    const chars = [...(cfg.text.split('\n')[0] || ' ')], sz = cfg.size;
+    const k = sz * Math.min(1, (cfg.fw - 160) / (rowWidth(chars) * sz));
+    return { parts: tileRow(cfg, S, rng, chars, k, 0, 0, '').parts, tear: 'v' };
   }
 
   function layoutChapter(cfg, S, rng) {
     const lines = cfg.text.split('\n').map(s => s.trim()).filter(Boolean); if (!lines.length) lines.push(' ');
-    const sz = cfg.size, px = 215 * sz * (lines.length > 2 ? 0.8 : 1), kind = cfg.kind || 'ink', parts = [];
-    const sw = W0 + 2 * MD, sh = H0 + 2 * MD;
+    const sz = cfg.size, kind = cfg.kind || 'ink', parts = [];
+    let px = 215 * sz * (lines.length > 2 ? 0.8 : 1);
+    const widest = Math.max(...lines.map(l => textWidth(l, 'grotesk', px, -0.02)));
+    if (widest > cfg.fw - 140) px *= (cfg.fw - 140) / widest;                    // long lines shrink to the frame
+    const sw = cfg.fw + 2 * MD, sh = cfg.fh + 2 * MD;
     const sheet = memo(['sheet', kind, cfg.seed, S].join(), () => {
       const c = mk(sw * S, sh * S), x = c.getContext('2d'); x.drawImage(paperTexture(sw * S, sh * S, kind, rngOf('sheet', cfg.seed, kind), S), 0, 0);
       return { cv: c, pw: sw * S / 2, ph: sh * S / 2, w: sw, h: sh };
@@ -550,15 +606,87 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     return { parts, tear: 'h', full: true };
   }
 
-  const LAYOUTS = { strip: layoutStrips, lower: layoutLower, title: layoutTitle, tiles: layoutTiles, chapter: layoutChapter };
+  // ------------------------------------------------------------------ the Shorts card: "new video now live, link in bio"
+  function drawPhoto(x, img, ox, oy, W, H, S, rng, bw) {            // a thumbnail printed inside a white paper border
+    const m = 16 * S, iw = Math.round(W - 2 * m), ih = Math.round(H - 2 * m), nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height;
+    const r = Math.max(iw / nw, ih / nh), sw = iw / r, sh = ih / r, c = mk(iw, ih), cx = c.getContext('2d');
+    cx.drawImage(img, (nw - sw) / 2, (nh - sh) / 2, sw, sh, 0, 0, iw, ih);
+    if (bw) {                                                        // photocopy look: grey, a bit more contrast
+      const d = cx.getImageData(0, 0, iw, ih), q = d.data;
+      for (let i = 0; i < q.length; i += 4) { const v = clamp((0.3 * q[i] + 0.59 * q[i + 1] + 0.11 * q[i + 2] - 128) * 1.35 + 134, 0, 255); q[i] = q[i + 1] = q[i + 2] = v; }
+      cx.putImageData(d, 0, 0);
+    }
+    x.drawImage(c, ox + m, oy + m);
+    x.drawImage(noiseCanvas(W, H, S, rng, 0.05), ox, oy);
+  }
+  const ARROW = { up: [0, -1, 0], right: [1, 0, 90], down: [0, 1, 180], left: [-1, 0, 270] };
+
+  function layoutCta(cfg, S, rng) {
+    const L = cfg.text.split('\n').map(t => t.trim()), eyebrow = L[0] || '', head = L[1] || '', call = L[2] || '', title = L[3] || '';
+    const sz = cfg.size, blocks = []; let slap = 0;
+    const plate = (txt, o) => {                                       // one torn plate with printed text
+      const tw = textWidth(txt, o.face, o.px, o.tracking), w = Math.max(60, tw + 2 * o.padx), h = o.px * (o.face === 'mono' ? 0.75 : 0.74) + 2 * o.pady;
+      const spr = makeScrap({ w, h, kind: o.kind, seed: cfg.seed + o.key, S, amp: 0.5,
+        content: (x, ox, oy, W, H, S2, r) => printText(x, txt, o.face, o.px * S2, colorOf(cfg, o.kind, o.color || 'auto'), o.tracking, ox + W / 2, oy + H / 2, S2, r) });
+      return { spr, x: 0, y: 0, rot: cfg.tilt == null ? o.tilt : o.tilt < 0 ? -cfg.tilt : cfg.tilt, slap: o.slap, boil: 0.8, shadow: 0.5, key: o.key, sgn: rng.sign(), w, h };
+    };
+    if (cfg.image) {                                                  // the video thumbnail, taped on
+      const w = Math.min(880, cfg.fw - 200) * sz, h = w * 9 / 16;
+      const spr = makeScrap({ w, h, kind: 'white', seed: cfg.seed + 'photo', S, amp: 0.4, content: (x, ox, oy, W, H, S2, r) => drawPhoto(x, cfg.image, ox, oy, W, H, S2, r, cfg.photoBW) });
+      blocks.push({ parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? -rng.uni(1.6, 3) : -cfg.tilt, slap, boil: 0.8, shadow: 0.55, key: 'photo', sgn: rng.sign(), w, h, tapeHere: true }], h, gap: -14 * sz });
+      slap += 2;
+    }
+    if (eyebrow) {
+      const p = plate(eyebrow.toUpperCase(), { face: 'mono', px: 38 * sz, tracking: 0.14, padx: 40 * sz, pady: 24 * sz, kind: cfg.kind || 'ink', key: 'eyebrow', tilt: 1.6, slap, color: cfg.textColor });
+      blocks.push({ parts: [p], h: p.h, gap: 30 * sz }); slap += 2;
+    }
+    const words = head.split(/\s+/).filter(Boolean).slice(0, 3);
+    if (words.length && cfg.headline === 'scrap') {                   // the big words on one torn scrap
+      const px = 170 * sz, lh = px * 1.0, lines = words.map(w => w.toUpperCase()), tw = Math.max(...lines.map(l => textWidth(l, 'grotesk', px, -0.03)));
+      const w = tw + 2 * 76 * sz, h = lines.length * lh + 2 * 46 * sz - (lh - px * 0.74), kind = cfg.kind3 && cfg.kind3 !== 'mixed' ? cfg.kind3 : 'paper';
+      const spr = makeScrap({ w, h, kind, seed: cfg.seed + 'head', S, amp: 0.6, content: (x, ox, oy, W, H, S2, r) => lines.forEach((l, i) =>
+        printText(x, l, 'grotesk', px * S2, colorOf(cfg, kind, cfg.textColor), -0.03, ox + W / 2, oy + H / 2 + (i - (lines.length - 1) / 2) * lh * S2, S2, r)) });
+      blocks.push({ parts: [{ spr, x: 0, y: 0, rot: cfg.tilt == null ? -rng.uni(1, 2.2) : cfg.tilt, slap, boil: 1, shadow: 0.55, key: 'head', sgn: rng.sign(), w, h }], h, gap: -12 * sz }); slap += 2;
+    } else if (words.length) {                                        // the big words as ransom-note tiles, one word a row
+      const rows = words.map(w => [...w.toUpperCase()]), k = sz * Math.min(1, (cfg.fw - 200) / (Math.max(...rows.map(rowWidth)) * sz));
+      const rowH = 272 * k, gapR = 16 * k, bh = rows.length * rowH + (rows.length - 1) * gapR, parts = []; let at = slap;
+      rows.forEach((chars, r) => {
+        const row = tileRow(Object.assign({}, cfg, { kind: cfg.kind3 || 'mixed' }), S, rng, chars, k, -bh / 2 + rowH / 2 + r * (rowH + gapR), at, 'r' + r + '-');
+        parts.push(...row.parts); at = row.last + 1;
+      });
+      blocks.push({ parts, h: bh, gap: -8 * sz }); slap = at + 1;
+    }
+    if (call) {
+      const p = plate(call.toUpperCase(), { face: 'mono', px: 46 * sz, tracking: 0.14, padx: 52 * sz, pady: 30 * sz, kind: cfg.kind2 || 'orange', key: 'call', tilt: -1.4, slap });
+      const parts = [p];
+      if (cfg.arrow && cfg.arrow !== 'none' && ARROW[cfg.arrow]) {    // a torn arrow that bounces towards the bio
+        const [dx, dy, rot] = ARROW[cfg.arrow], aw = 80 * sz, ah = 100 * sz, vert = rot % 180 === 0;
+        const spr = makeScrap({ w: aw, h: ah, kind: 'paper', seed: cfg.seed + 'arrow', S, amp: 0.45,
+          corners: [[aw / 2, 0], [aw, ah * 0.46], [aw * 0.68, ah * 0.46], [aw * 0.68, ah], [aw * 0.32, ah], [aw * 0.32, ah * 0.46], [0, ah * 0.46]] });
+        parts.push({ spr, x: p.w / 2 + 22 * sz + (vert ? aw : ah) / 2, y: 0, rot, slap: slap + 1, boil: 0.8, shadow: 0.5, key: 'arrow', sgn: 1, w: vert ? aw : ah, h: vert ? ah : aw, bounce: [dx, dy, 14 * sz] });
+      }
+      blocks.push({ parts, h: p.h, gap: 14 * sz }); slap += 2;
+    }
+    if (title) {
+      const p = plate(title, { face: 'grotesk', px: 52 * sz, tracking: -0.02, padx: 44 * sz, pady: 28 * sz, kind: 'white', key: 'title', tilt: 1.1, slap });
+      blocks.push({ parts: [p], h: p.h, gap: 0 }); slap += 2;
+    }
+    if (!blocks.length) { const p = plate(' ', { face: 'mono', px: 38, tracking: 0, padx: 40, pady: 24, kind: 'ink', key: 'eyebrow', tilt: 0, slap: 0 }); blocks.push({ parts: [p], h: p.h, gap: 0 }); }
+    const parts = []; let top = 0;
+    blocks.forEach((b) => { const yc = top + b.h / 2; b.parts.forEach(p => { p.y += yc; parts.push(p); }); top += b.h + b.gap; });
+    return { parts, tear: 'v' };
+  }
+
+  const LAYOUTS = { cta: layoutCta, strip: layoutStrips, lower: layoutLower, title: layoutTitle, tiles: layoutTiles, chapter: layoutChapter };
   const DEFAULTS = {
     strip: { kind: 'ink', kind2: 'orange', pos: 'bl', size: 1 }, lower: { kind: 'paper', kind2: 'orange', pos: 'bl', size: 1 },
     title: { kind: 'paper', pos: 'c', size: 1 }, tiles: { kind: 'mixed', pos: 'c', size: 1 }, chapter: { kind: 'ink', pos: 'c', size: 1 },
+    cta: { kind: 'ink', kind2: 'orange', pos: 'c', size: 1, frame: 'v', arrow: 'up', headline: 'tiles' },
   };
 
   // ------------------------------------------------------------------ accents: tape, little pop-out scraps, scribble underline
   function addTape(parts, group, S, cfg, rng) {
-    const main = parts.filter(p => p.slap !== null && !p.sheet)[0]; if (!main) return;
+    const main = parts.find(p => p.tapeHere) || parts.filter(p => p.slap !== null && !p.sheet)[0]; if (!main) return;
     const spr = makeScrap({ w: 74, h: 30, kind: 'tape', seed: cfg.seed + 'tape', S, amp: 0.45 });
     [[-1, -rng.uni(24, 38)], [1, rng.uni(22, 34)]].forEach(([side, rot], i) => {
       parts.push({ spr, x: main.x + side * (main.w / 2 - 14), y: main.y - main.h / 2 + 6, rot, slap: main.slap + 1 + i, boil: 0.6, shadow: 0.25, key: 'tape' + i, sgn: 1, w: 74, h: 30, alpha: 0.82 });
@@ -588,31 +716,39 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
   // ------------------------------------------------------------------ clips
   function resolve(cfgIn) {
     const type = cfgIn.type && LAYOUTS[cfgIn.type] ? cfgIn.type : 'strip';
-    return Object.assign({ type, text: 'WEEK 07', textColor: 'auto', tilt: null, x: null, y: null, hold: 2.5, inStyle: 'slap', outStyle: 'tear',
-      boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, caps: true }, DEFAULTS[type], cfgIn, { type });
+    const cfg = Object.assign({ type, text: 'WEEK 07', textColor: 'auto', tilt: null, x: null, y: null, hold: 2.5, inStyle: 'slap', outStyle: 'tear',
+      boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, caps: true, frame: 'h', arrow: 'up', headline: 'tiles' }, DEFAULTS[type], cfgIn, { type });
+    cfg.fw = cfg.frame === 'v' ? 1080 : 1920; cfg.fh = cfg.frame === 'v' ? 1920 : 1080;
+    return cfg;
   }
-  const MARGIN_X = 96, MARGIN_Y = 90;
+  /** Safe margins: landscape uses title-safe edges. Vertical keeps clear of the top bar, the caption block and the side buttons
+   *  that Shorts, Reels and TikTok draw over the picture (approximate: about 11% top, 22% bottom, 7% sides). */
+  function margins(cfg) { return cfg.fw > cfg.fh ? { l: 96, r: 96, t: 90, b: 90 } : { l: 70, r: 70, t: 210, b: 430 }; }
   function anchor(cfg, gw, gh) {
     if (cfg.x != null && cfg.y != null) return [cfg.x, cfg.y];
-    const p = cfg.pos || 'c', cx = { l: MARGIN_X + gw / 2, c: W0 / 2, r: W0 - MARGIN_X - gw / 2 }, cy = { t: MARGIN_Y + gh / 2, c: H0 / 2, b: H0 - MARGIN_Y - gh / 2 };
-    const m = { bl: ['l', 'b'], bc: ['c', 'b'], br: ['r', 'b'], tl: ['l', 't'], tc: ['c', 't'], tr: ['r', 't'], c: ['c', 'c'], cl: ['l', 'c'], cr: ['r', 'c'] }[p] || ['c', 'c'];
-    return [cx[m[0]], cy[m[1]]];
+    const m = margins(cfg), p = cfg.pos || 'c';
+    const cx = { l: m.l + gw / 2, c: (m.l + cfg.fw - m.r) / 2, r: cfg.fw - m.r - gw / 2 }, cy = { t: m.t + gh / 2, c: (m.t + cfg.fh - m.b) / 2, b: cfg.fh - m.b - gh / 2 };
+    const k = { bl: ['l', 'b'], bc: ['c', 'b'], br: ['r', 'b'], tl: ['l', 't'], tc: ['c', 't'], tr: ['r', 't'], c: ['c', 'c'], cl: ['l', 'c'], cr: ['r', 'c'] }[p] || ['c', 'c'];
+    return [cx[k[0]], cy[k[1]]];
   }
 
   function buildClip(cfgIn) {
-    const cfg = resolve(cfgIn), S = cfg.scale, fps = cfg.fps, rng = rngOf('layout', cfg.seed, cfg.type);
+    const cfg = resolve(cfgIn), S = cfg.scale, fps = cfg.fps, FW = cfg.fw, FH = cfg.fh, rng = rngOf('layout', cfg.seed, cfg.type);
     const lay = LAYOUTS[cfg.type](cfg, S, rng), parts = lay.parts;
     // group bounds (relative to the group's own centre), then place the group
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     parts.forEach(p => { if (p.sheet) return; x0 = Math.min(x0, p.x - p.w / 2); x1 = Math.max(x1, p.x + p.w / 2); y0 = Math.min(y0, p.y - p.h / 2); y1 = Math.max(y1, p.y + p.h / 2); });
     const gw = x1 - x0, gh = y1 - y0, gcx = (x0 + x1) / 2, gcy = (y0 + y1) / 2;
-    if (!lay.full && gw > 1740 && !cfgIn._fitted) return buildClip(Object.assign({}, cfgIn, { size: (cfgIn.size || 1) * 1740 / gw, _fitted: true }));   // long text shrinks to fit the frame
+    if (!lay.full && !cfgIn._fitted) {                                // long text shrinks to fit the safe area
+      const m = margins(cfg), limW = FW - m.l - m.r, limH = FH - m.t - m.b;
+      if (gw > limW || gh > limH) return buildClip(Object.assign({}, cfgIn, { size: (cfgIn.size || 1) * Math.min(limW / gw, limH / gh) * 0.98, _fitted: true }));
+    }
     parts.forEach(p => { if (!p.sheet) { p.x -= gcx; p.y -= gcy; } });
-    const [ax, ay] = lay.full ? [W0 / 2, H0 / 2] : anchor(cfg, gw, gh);
+    const [ax, ay] = lay.full ? [FW / 2, FH / 2] : anchor(cfg, gw, gh);
     parts.forEach(p => { p.x += ax; p.y += ay; });
     const group = { w: gw, h: gh, cx: ax, cy: ay, x0: ax - gw / 2, x1: ax + gw / 2, y0: ay - gh / 2, y1: ay + gh / 2 };
     if (cfg.tape && !lay.full) addTape(parts, group, S, cfg, rng);
-    if (cfg.underline && cfg.type !== 'tiles') {
+    if (cfg.underline && cfg.type !== 'tiles' && cfg.type !== 'cta') {
       const base = lay.full ? parts.filter(p => !p.sheet).slice(-1)[0] : null;
       if (lay.full && base) { group.cx = base.x; group.y1 = base.y + base.h / 2 - 20; group.w = base.w; }
       addUnderline(parts, S, cfg, rng, group);
@@ -626,7 +762,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     const tearRng = rngOf('tear', cfg.seed, cfg.type);
     let cutPath = null;
     if (cfg.outStyle === 'tear') {
-      if (lay.tear === 'h') cutPath = tornPath([-MD - 40, H0 / 2 + tearRng.uni(-40, 40)], [W0 + MD + 40, H0 / 2 + tearRng.uni(-40, 40)], tearRng, 1.2, 1);
+      if (lay.tear === 'h') cutPath = tornPath([-MD - 40, FH / 2 + tearRng.uni(-40, 40)], [FW + MD + 40, FH / 2 + tearRng.uni(-40, 40)], tearRng, 1.2, 1);
       else { const cx = group.cx + tearRng.uni(-0.14, 0.14) * group.w, sk = tearRng.uni(-0.1, 0.1) * group.h; cutPath = tornPath([cx + sk, group.y0 - 80], [cx - sk, group.y1 + 80], tearRng, 1.2, 1); }
     }
 
@@ -634,7 +770,9 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       if (p.slap !== null && step < p.slap) return null;
       const k = p.slap === null ? 99 : step - p.slap, kick = cfg.inStyle === 'slap' && k === 0;
       const b = boil(cfg.seed, p.key, step, p.boil * cfg.boil);
-      return { x: p.x + b.dx, y: p.y + b.dy, rot: p.rot + b.dr + (kick ? 2.5 * p.sgn : 0), sc: kick ? 1.13 : 1, lift: kick ? 2.2 : 1 };
+      let ox = 0, oy = 0;
+      if (p.bounce) { const ph = [0, 0.55, 1, 0.55][k % 4] * p.bounce[2]; ox = p.bounce[0] * ph; oy = p.bounce[1] * ph; }   // a four-step hop towards the bio
+      return { x: p.x + b.dx + ox, y: p.y + b.dy + oy, rot: p.rot + b.dr + (kick ? 2.5 * p.sgn : 0), sc: kick ? 1.13 : 1, lift: kick ? 2.2 : 1 };
     }
     function drawParts(ctx, step, withShadow, S_) {
       parts.slice().forEach(p => {
@@ -658,7 +796,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
 
     // the tear: render the group to a flat layer, then draw it as two torn halves
     function halves(ctx, step, oi) {
-      const g = mk(W0 * S, H0 * S), gx = g.getContext('2d');
+      const g = mk(FW * S, FH * S), gx = g.getContext('2d');
       drawParts(gx, step, false, S);
       const horiz = lay.tear === 'h', coreKey = cfg.kind && CORE[cfg.kind] ? cfg.kind : 'paper';
       const states = horiz
@@ -670,13 +808,13 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       const sides = [[1, st[0]], [-1, st[1]]];
       sides.forEach(([sg, [dx, dy, rot]], idx) => {
         const poly = path.concat([[p1[0] + nrm[0] * far * sg, p1[1] + nrm[1] * far * sg], [p0[0] + nrm[0] * far * sg, p0[1] + nrm[1] * far * sg]]);
-        const h = mk(W0 * S, H0 * S), hx = h.getContext('2d'); hx.scale(S, S);
+        const h = mk(FW * S, FH * S), hx = h.getContext('2d'); hx.scale(S, S);
         hx.save(); pathOf(hx, poly); hx.clip(); hx.setTransform(1, 0, 0, 1, 0, 0); hx.drawImage(g, 0, 0); hx.scale(S, S);
         const rr = rngOf('rim', cfg.seed, idx), a = jag(L, rr, [[2.8, 1]]), b = jag(L, rr, [[0.5, 1]]), off = path.map((pt, i) => {
           const w = Math.max(0.5, 2 + 3.4 * Math.abs(a[i]) + 1 * b[i]); return [pt[0] + nrm[0] * w * sg, pt[1] + nrm[1] * w * sg]; });
         hx.beginPath(); hx.moveTo(path[0][0], path[0][1]); path.forEach(pt => hx.lineTo(pt[0], pt[1])); for (let i = L - 1; i >= 0; i--) hx.lineTo(off[i][0], off[i][1]); hx.closePath();
         hx.fillStyle = CORE[coreKey]; hx.fill(); hx.restore();
-        const cxh = horiz ? W0 / 2 : (sg > 0 ? (group.x0 + path[(L / 2) | 0][0]) / 2 : (group.x1 + path[(L / 2) | 0][0]) / 2), cyh = horiz ? (sg > 0 ? H0 * 0.73 : H0 * 0.27) : group.cy;
+        const cxh = horiz ? FW / 2 : (sg > 0 ? (group.x0 + path[(L / 2) | 0][0]) / 2 : (group.x1 + path[(L / 2) | 0][0]) / 2), cyh = horiz ? (sg > 0 ? FH * 0.73 : FH * 0.27) : group.cy;
         ctx.save(); ctx.translate((cxh + dx) * S, (cyh + dy) * S); ctx.rotate(rot * Math.PI / 180); ctx.translate(-cxh * S, -cyh * S);
         const lift = 1 + oi * 0.5; ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 20 * lift * S; ctx.shadowOffsetX = 6 * lift * S; ctx.shadowOffsetY = 11 * lift * S;
         ctx.drawImage(h, 0, 0); ctx.restore();
@@ -691,7 +829,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     }
 
     function draw(ctx, i, dx, dy) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W0 * S, H0 * S); ctx.translate((dx || 0) * S, (dy || 0) * S);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, FW * S, FH * S); ctx.translate((dx || 0) * S, (dy || 0) * S);
       const step = Math.floor(i / fps * STEP_RATE + 1e-6);
       if (cfg.outStyle === 'tear' && step >= holdSteps) {
         const oi = step - holdSteps, horiz = lay.tear === 'h';
@@ -709,8 +847,8 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       drawParts(ctx, Math.min(step, holdSteps - 1), true, S);
       if (bits.length) drawBits(ctx, step);
     }
-    function still(ctx, dx, dy) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W0 * S, H0 * S); ctx.translate((dx || 0) * S, (dy || 0) * S); drawParts(ctx, lastSlap + 3, true, S); }
-    return { cfg, nFrames, fps, S, W: W0 * S, H: H0 * S, draw, still, group, steps: total, holdSteps, movable: !lay.full };
+    function still(ctx, dx, dy) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, FW * S, FH * S); ctx.translate((dx || 0) * S, (dy || 0) * S); drawParts(ctx, lastSlap + 3, true, S); }
+    return { cfg, nFrames, fps, S, W: FW * S, H: FH * S, FW, FH, draw, still, group, steps: total, holdSteps, movable: !lay.full };
   }
 
   root.PaperText = { buildClip, resolve, KINDS, DEFAULTS, W0, H0, fontsReady: () => Promise.all([
@@ -725,8 +863,9 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
   const $ = (id) => document.getElementById(id);
   const PT = window.PaperText;
 
-  const SAMPLE = { strip: 'WEEK 07', lower: 'Adam\nTraining week 7 · The long run', title: 'The long run', tiles: '16.2 MI', chapter: 'WEEK 07\nThe long run' };
+  const SAMPLE = { cta: 'NEW YOUTUBE VIDEO\nNOW LIVE\nLINK IN BIO', strip: 'WEEK 07', lower: 'Adam\nTraining week 7 · The long run', title: 'The long run', tiles: '16.2 MI', chapter: 'WEEK 07\nThe long run' };
   const HELP = {
+    cta: 'Each box is one piece of the card. Leave a box empty to drop that piece. Each big word gets its own row of tiles.',
     strip: 'One line per strip. Capitalised for you.',
     lower: 'The first line is the name. Any other lines become the subtitle strip.',
     title: 'One or more lines.',
@@ -740,7 +879,9 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
   const state = Object.assign({
     type: 'strip', text: SAMPLE.strip, kind: 'ink', kind2: 'orange', textColor: 'auto', size: 1, tilt: 'auto', pos: 'bl', x: null, y: null,
     hold: 2.5, inStyle: 'slap', outStyle: 'tear', boil: 1, seed: 7, tape: false, pop: false, underline: false, fps: 30, scale: 1, bg: 'checker',
+    frame: 'h', arrow: 'up', headline: 'tiles', kind3: 'mixed', photoBW: false, safe: false,
   }, load());
+  let thumbImg = null;   // the optional video thumbnail; kept in memory only
 
   function load() { try { return JSON.parse(localStorage.getItem('sub3piece-paper-text') || '{}'); } catch (e) { return {}; } }
   function save() { try { localStorage.setItem('sub3piece-paper-text', JSON.stringify(state)); } catch (e) { /* storage is optional */ } }
@@ -749,7 +890,8 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     type: state.type, text: state.text, kind: state.kind, kind2: state.kind2, textColor: state.textColor, size: state.size,
     tilt: state.tilt === 'flat' ? 0 : null, pos: state.pos, x: state.x, y: state.y, hold: state.hold, inStyle: state.inStyle,
     outStyle: state.outStyle, boil: state.boil, seed: state.seed, tape: state.tape, pop: state.pop, underline: state.underline,
-    fps: state.fps, scale: 1, caps: true,
+    fps: state.fps, scale: 1, caps: true, frame: state.frame, arrow: state.arrow, headline: state.headline, kind3: state.kind3,
+    photoBW: state.photoBW, image: state.type === 'cta' ? thumbImg : null,
   }, over || {});
 
   // ------------------------------------------------------------------ controls
@@ -764,20 +906,26 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     });
   }
   function syncControls() {
-    const t = state.type, tiles = t === 'tiles', chapter = t === 'chapter', two = t === 'strip' || t === 'lower';
+    const t = state.type, tiles = t === 'tiles', chapter = t === 'chapter', cta = t === 'cta', two = t === 'strip' || t === 'lower' || cta;
     document.querySelectorAll('#types .type').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.type === t)));
     $('text').value = state.text; $('textHelp').textContent = HELP[t];
+    $('text').hidden = cta; $('ctaFields').hidden = !cta; $('textLbl').textContent = cta ? 'Words on the card' : 'Text'; $('textLbl').htmlFor = cta ? 'c1' : 'text';
+    if (cta) { const L = state.text.split('\n'); ['c1', 'c2', 'c3', 'c4'].forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = L[i] || ''; }); }
     chips($('kind'), tiles ? ['mixed', 'paper', 'orange', 'white', 'ink'] : ['paper', 'ink', 'orange', 'white'], 'kind');
-    chips($('kind2'), ['paper', 'ink', 'orange', 'white'], 'kind2');
-    $('kindLbl').textContent = t === 'lower' ? 'Name paper' : t === 'strip' ? 'First strip' : chapter ? 'Sheet' : 'Paper';
-    $('kind2Lbl').textContent = t === 'lower' ? 'Subtitle paper' : 'Second strip';
+    chips($('kind2'), ['paper', 'ink', 'orange', 'white'], 'kind2'); chips($('kind3'), ['mixed', 'paper', 'orange', 'white', 'ink'], 'kind3');
+    $('kindLbl').textContent = cta ? 'Small label paper' : t === 'lower' ? 'Name paper' : t === 'strip' ? 'First strip' : chapter ? 'Sheet' : 'Paper';
+    $('kind2Lbl').textContent = cta ? 'Call-to-action paper' : t === 'lower' ? 'Subtitle paper' : 'Second strip';
+    $('kind3Wrap').hidden = !cta; $('ctaOpts').hidden = !cta;
     $('kind2Wrap').hidden = !two;
     pressed($('textColor'), state.textColor); pressed($('tilt'), state.tilt); pressed($('inStyle'), state.inStyle); pressed($('outStyle'), state.outStyle); pressed($('bgs'), state.bg);
     $('size').value = state.size; $('sizeO').textContent = Math.round(state.size * 100) + '%';
     $('hold').value = state.hold; $('boil').value = state.boil; $('boilO').textContent = Number(state.boil).toFixed(1);
     $('tape').checked = state.tape; $('pop').checked = state.pop; $('underline').checked = state.underline;
-    $('tape').disabled = chapter; $('pop').disabled = chapter; $('underline').disabled = tiles;
+    $('tape').disabled = chapter; $('pop').disabled = chapter; $('underline').disabled = tiles || cta;
+    pressed($('arrow'), state.arrow); pressed($('headline'), state.headline); pressed($('frame'), state.frame); $('photoBW').checked = state.photoBW; $('safe').checked = state.safe;
+    $('thumbClear').hidden = !thumbImg; screen.dataset.frame = state.frame; updateSafe();
     $('fps').value = String(state.fps); $('res').value = String(state.scale);
+    $('res').options[0].textContent = state.frame === 'v' ? '1080 × 1920' : '1920 × 1080'; $('res').options[1].textContent = state.frame === 'v' ? '2160 × 3840' : '3840 × 2160';
     document.querySelectorAll('#pos button').forEach((b) => { b.setAttribute('aria-pressed', String(state.x == null && b.dataset.p === state.pos)); b.disabled = chapter; });
     $('screen').dataset.bg = state.bg;
   }
@@ -798,6 +946,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
       if (my !== gen) return;
       try { clip = PT.buildClip(cfgOf()); } catch (e) { console.error(e); $('busy').textContent = 'Could not build'; return; }
       $('busy').hidden = true; $('busy').textContent = 'Building';
+      if (cv.width !== clip.W || cv.height !== clip.H) { cv.width = clip.W; cv.height = clip.H; }
       dragOff = [0, 0]; $('scrub').max = String(clip.nFrames - 1); startT = performance.now();
       screen.classList.toggle('movable', clip.movable); $('hint').hidden = !clip.movable;
       draw();
@@ -824,17 +973,37 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
 
   // drag to place
   let dragging = false, dragStart = null;
-  function design(e) { const r = screen.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * 1920, (e.clientY - r.top) / r.height * 1080]; }
+  function design(e) { const r = screen.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * clip.FW, (e.clientY - r.top) / r.height * clip.FH]; }
   screen.addEventListener('pointerdown', (e) => { if (!clip || !clip.movable) return; dragging = true; dragStart = design(e); screen.setPointerCapture(e.pointerId); screen.classList.add('dragging'); });
   screen.addEventListener('pointermove', (e) => {
     if (!dragging) return; const p = design(e), g = clip.group;
-    dragOff = [Math.max(-g.cx, Math.min(1920 - g.cx, p[0] - dragStart[0])), Math.max(-g.cy, Math.min(1080 - g.cy, p[1] - dragStart[1]))];
+    dragOff = [Math.max(-g.cx, Math.min(clip.FW - g.cx, p[0] - dragStart[0])), Math.max(-g.cy, Math.min(clip.FH - g.cy, p[1] - dragStart[1]))];
   });
   function endDrag() {
     if (!dragging) return; dragging = false; screen.classList.remove('dragging');
     if (Math.abs(dragOff[0]) + Math.abs(dragOff[1]) > 2) { state.x = Math.round(clip.group.cx + dragOff[0]); state.y = Math.round(clip.group.cy + dragOff[1]); syncControls(); changed(); }
   }
   screen.addEventListener('pointerup', endDrag); screen.addEventListener('pointercancel', endDrag);
+
+  // safe-area guide: the zones that platform UI draws over the picture (approximate)
+  function updateSafe() {
+    const v = state.frame === 'v', fw = v ? 1080 : 1920, fh = v ? 1920 : 1080, m = v ? { l: 70, r: 70, t: 210, b: 430 } : { l: 96, r: 96, t: 90, b: 90 }, g = $('safeGuide');
+    g.style.setProperty('--st', (m.t / fh * 100) + '%'); g.style.setProperty('--sb', (m.b / fh * 100) + '%'); g.style.setProperty('--sl', (m.l / fw * 100) + '%'); g.style.setProperty('--sr', (m.r / fw * 100) + '%');
+    g.querySelector('em').hidden = !v; g.hidden = !state.safe;
+  }
+  $('safe').addEventListener('change', (e) => { state.safe = e.target.checked; updateSafe(); save(); });
+
+  // the optional video thumbnail
+  $('thumb').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f), im = new Image();
+    im.onload = () => { thumbImg = im; URL.revokeObjectURL(url); $('thumbHelp').textContent = 'Using ' + f.name + '. It stays in this browser.'; syncControls(); changed(); };
+    im.onerror = () => { URL.revokeObjectURL(url); $('thumbHelp').textContent = 'That file could not be read as an image. Try a PNG or JPG.'; };
+    im.src = url;
+  });
+  $('thumbClear').addEventListener('click', () => { thumbImg = null; $('thumb').value = ''; $('thumbHelp').textContent = 'Your image stays in this browser. It is cropped to 16:9 and taped on above the text.'; syncControls(); changed(); });
+  $('photoBW').addEventListener('change', (e) => { state.photoBW = e.target.checked; changed(); });
+  ['c1', 'c2', 'c3', 'c4'].forEach((id, i) => $(id).addEventListener('input', () => { const L = ['c1', 'c2', 'c3', 'c4'].map((k) => $(k).value.replace(/\n/g, ' ')); while (L.length && !L[L.length - 1]) L.pop(); state.text = L.join('\n'); changed(); }));
 
   // ------------------------------------------------------------------ export
   let downloads = null, canSave = true;
@@ -871,7 +1040,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, offset, true);
     return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
   }
-  const slug = (s) => (s.split(/\n|\/\//)[0] || 'clip').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'clip';
+  const slug = (s) => (s.split(/\n|\/\//)[state.type === 'cta' && s.split(/\n|\/\//)[1] ? 1 : 0] || 'clip').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'clip';
   const png = (canvas) => new Promise((res) => canvas.toBlob(res, 'image/png'));
 
   async function renderFrames(cfg, label, prefix, onTick) {
@@ -883,7 +1052,7 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     }
     return { files, clip: c };
   }
-  const guide = (c) => 'sub3piece Paper text\n\nPNG sequence with transparency, ' + c.W + 'x' + c.H + ', ' + c.fps + ' fps.\n\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence", Import. Then right-click the clip > Modify > Interpret Footage > Assume this frame rate: ' + c.fps + '.\nDaVinci Resolve: Media page, drag the folder into the media pool. It appears as one clip. Set Clip Attributes > Frame rate to ' + c.fps + ' if it picked another.\n';
+  const guide = (c) => 'sub3piece Paper text\n\nPNG sequence with transparency, ' + c.W + 'x' + c.H + ', ' + c.fps + ' fps.\n' + (c.fps === 10 ? 'The animation moves in 10 steps a second, so this looks the same on a 30 fps timeline: set the clip to 10 fps and it holds each frame for three.\n' : '') + '\nPremiere Pro: File > Import, pick the first frame, tick "Image Sequence", Import. Then right-click the clip > Modify > Interpret Footage > Assume this frame rate: ' + c.fps + '.\nDaVinci Resolve: Media page, drag the folder into the media pool. It appears as one clip. Set Clip Attributes > Frame rate to ' + c.fps + ' if it picked another.\n';
 
   let busy = false;
   async function guard(fn) {
@@ -895,15 +1064,15 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     } finally { busy = false; $('prog').hidden = true; setExportEnabled(canSave); }
   }
   $('exClip').addEventListener('click', () => guard(async () => {
-    const cfg = cfgOf({ scale: state.scale, fps: state.fps }), name = cfg.type + '-' + slug(cfg.text);
+    const cfg = cfgOf({ scale: state.scale, fps: state.fps }), name = (cfg.type === 'cta' ? 'shorts-card' : cfg.type) + '-' + slug(cfg.text);
     const { files, clip: c } = await renderFrames(cfg, name, name, (i, n) => { $('prog').value = i / n; setStatus('Rendering frame ' + i + ' of ' + n + '…'); });
     files.push({ name: 'READ-ME.txt', data: new TextEncoder().encode(guide(c)) });
     const blob = makeZip(files.map((f) => Object.assign({}, f, { name: name + '/' + f.name })));
-    await saveFile(name + '.zip', blob); setStatus('Saved ' + name + '.zip: ' + c.nFrames + ' frames, ' + (blob.size / 1048576).toFixed(1) + ' MB.', 'ok');
+    await saveFile(name + '.zip', blob); setStatus('Saved ' + name + '.zip: ' + c.nFrames + ' frames, ' + (blob.size / 1048576).toFixed(1) + ' MB.' + (blob.size > 40 * 1048576 && c.fps > 10 ? ' Tip: 10 fps gives a file about 3 times smaller that looks the same, because the animation moves 10 steps a second.' : ''), 'ok');
   }));
   $('exStill').addEventListener('click', () => guard(async () => {
     const cfg = cfgOf({ scale: state.scale }), c = PT.buildClip(cfg), cvs = document.createElement('canvas'); cvs.width = c.W; cvs.height = c.H; c.still(cvs.getContext('2d'));
-    const name = cfg.type + '-' + slug(cfg.text) + '.png'; await saveFile(name, await png(cvs)); setStatus('Saved ' + name + '.', 'ok');
+    const name = (cfg.type === 'cta' ? 'shorts-card' : cfg.type) + '-' + slug(cfg.text) + '.png'; await saveFile(name, await png(cvs)); setStatus('Saved ' + name + '.', 'ok');
   }));
   $('exBatch').addEventListener('click', () => guard(async () => {
     const jobs = $('batchText').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const [t, h] = l.split('|'); return { text: t.split('//').map((s) => s.trim()).join('\n'), hold: h && +h > 0 ? +h : state.hold }; });
@@ -923,10 +1092,12 @@ textarea { resize: vertical; min-height: 4.4em; font: 400 15px/1.35 var(--font-b
     const b = e.target.closest('.type'); if (!b) return; const prev = state.type, next = b.dataset.type; if (prev === next) return;
     if (state.text === SAMPLE[prev]) state.text = SAMPLE[next];
     const d = PT.DEFAULTS[next]; state.kind = d.kind; state.kind2 = d.kind2 || state.kind2; state.pos = d.pos; state.x = state.y = null; state.type = next;
+    if (next === 'cta') { state.frame = 'v'; state.kind3 = 'mixed'; } else if (prev === 'cta') state.frame = 'h';
     syncControls(); changed();
   });
   $('text').addEventListener('input', (e) => { state.text = e.target.value; changed(); });
-  seg('textColor', 'textColor'); seg('tilt', 'tilt'); seg('inStyle', 'inStyle'); seg('outStyle', 'outStyle');
+  seg('textColor', 'textColor'); seg('tilt', 'tilt'); seg('inStyle', 'inStyle'); seg('outStyle', 'outStyle'); seg('arrow', 'arrow'); seg('headline', 'headline');
+  $('frame').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b || state.frame === b.dataset.v) return; state.frame = b.dataset.v; state.x = state.y = null; syncControls(); changed(); });
   $('size').addEventListener('input', (e) => { state.size = +e.target.value; $('sizeO').textContent = Math.round(state.size * 100) + '%'; changed(); });
   $('hold').addEventListener('input', (e) => { const v = +e.target.value; if (v > 0) { state.hold = v; changed(); } });
   $('boil').addEventListener('input', (e) => { state.boil = +e.target.value; $('boilO').textContent = state.boil.toFixed(1); changed(); });

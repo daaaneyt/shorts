@@ -7,11 +7,12 @@ Torn-paper text elements in the same style as the intro, for Premiere Pro and Da
 2. Pick an element, type your text, adjust the look. The preview loops live.
 3. Press **Export clip (.zip)**. Unzip it, and import the PNG sequence into your editor (below).
 
-The clip is a full 1920×1080 frame with the element already placed, so you drop it on the top track and it's in position. Pick a spot with the position grid, or drag the element in the preview.
+The clip is a full frame (1920×1080, or 1080×1920 for Shorts) with the element already placed, so you drop it on the top track and it's in position. Pick a spot with the position grid, or drag the element in the preview.
 
 ## The elements
 | Element | What it is | Text |
 | --- | --- | --- |
+| **Shorts card** | A vertical "new video now live, link in bio" announcement: a small label, big ransom-note words, a call-to-action strip with a bouncing arrow, and an optional video title and thumbnail | Four boxes (see below) |
 | **Strip** | Mono caps on a torn strip, the way "LONDON MARATHON 2027" sits in the intro | One strip per line, alternating the two papers |
 | **Lower third** | A name plate with a subtitle strip pasted under it | Line 1 is the name; other lines become the subtitle |
 | **Title** | A big headline on one torn scrap | One or more lines |
@@ -21,6 +22,27 @@ The clip is a full 1920×1080 frame with the element already placed, so you drop
 **Extras:** tape on the corners, little scraps that pop out when it lands, and a hand-drawn orange underline. **Motion:** hold time, wobble amount, arrive (slap or cut), leave (tear, cut, or stay). **New tear pattern** re-rolls every random edge.
 
 Long text shrinks to fit the frame, so a long line never runs off the edge.
+
+## The Shorts card: "New YouTube video now live (link in bio)"
+Pick **Shorts card** and the frame switches to vertical 1080×1920. It has four boxes, and each one is a piece of the card:
+
+| Box | Default | What it does |
+| --- | --- | --- |
+| Small label | `NEW YOUTUBE VIDEO` | A mono-caps strip across the top of the big words |
+| Big words | `NOW LIVE` | Each word gets its own row of ransom-note tiles that stamp on one by one (or choose **One scrap** for each word stacked on a single torn scrap) |
+| Call to action | `LINK IN BIO` | An orange strip, with a torn arrow that hops towards the bio (up, right, down, left or none) |
+| Video title | empty | Optional. A white strip with the name of the video |
+
+Leave a box empty and that piece drops out, so `NEW ON YOUTUBE` / `OUT NOW` / `LINK IN BIO` or just `NOW LIVE` on its own both work. It also takes **Tape**, **Pop-out scraps**, and its own paper colour for the label, the big words and the call to action.
+
+**Video thumbnail:** choose an image and it's cropped to 16:9 and taped on above the words, with a **Photocopy look** option that matches Adam in the intro. The image never leaves your browser.
+
+**Safe area:** tick **Safe area** under the preview to see the shaded zones where Shorts, Reels and TikTok draw their caption block, buttons and top bar over your picture. The card is placed inside the clear area by default, using conservative margins of about 11% at the top, 22% at the bottom and 7% at the sides. Those margins are my estimate rather than any platform's published figures, so check one export on your phone before you rely on them.
+
+**Ways to use it:**
+- **As an end card:** `samples/sample_shorts-card_*_endcard.mp4` are finished 3.5 s clips on an ink background, with a silent audio track, that you can append to the end of a Short as they are. For your own words, export the transparent clip from the tool and put it over a plain background in your editor.
+- **Over your footage:** drop the transparent clip on the track above your Short.
+- **As a still:** **Export still (.png)** gives one transparent frame, for a cover image or a story. `samples/sample_shorts-card_new-video_still.png` is an example.
 
 ## Batch: a whole video's worth in one go
 Open **Batch: one clip per line**, put one clip per line, and press **Export all**. Add `| 4` to set a clip's hold in seconds, and `//` for a line break inside a clip:
@@ -43,8 +65,9 @@ The export is a PNG sequence with transparency. The steps below are from how the
 If you'd rather have a single file, the **ready-made clips** in `samples/` are ProRes 4444 with alpha and drop in like any other clip. They're the quickest way to check the transparency works in your setup.
 
 ## Settings worth knowing
-- **Frame rate:** match your timeline (24, 25, 30, 50 or 60). The stop-motion steps run 10 a second, so 30 fps (three frames per step) is the cleanest.
-- **Frame size:** 1920×1080, or 3840×2160 for a 4K timeline.
+- **Frame rate:** match your timeline (24, 25, 30, 50 or 60). The stop-motion steps run 10 a second, so 30 fps (three identical frames per step) is the cleanest.
+- **10 fps (smallest, same look):** because the animation only changes 10 times a second, a 10 fps export looks identical but is about three times smaller. A Shorts card with a thumbnail is about 90 MB at 30 fps and about 33 MB at 10. Import it and set the clip to 10 fps (Interpret Footage in Premiere, Clip Attributes in Resolve); on a 30 fps timeline it holds each frame for three.
+- **Frame size:** 1920×1080 (or 1080×1920 for Shorts), or double that for a 4K timeline.
 - **Hold:** how long the element sits before it tears away. To change it, just export again with a different hold, which takes a few seconds. You can also cut the clip in the middle of the hold and repeat a stretch of it; the wobble is random every step, so the join doesn't show.
 - **Arrive and Leave:** Slap lands with a small kick, and Tear rips the element in two and throws the halves out of frame. Choose Stay if you want to end the clip with the element still on screen.
 - **Keep text inside the title-safe area.** Lower-left and bottom-centre are already placed with margins.
@@ -54,7 +77,7 @@ If you'd rather have a single file, the **ready-made clips** in `samples/` are P
 | Path | What it is |
 | --- | --- |
 | `paper-text-generator.html` | The tool: one file, fonts inside, no install |
-| `samples/` | Six ready-made ProRes 4444 alpha clips, one per element, to test your editor |
+| `samples/` | Ready-made ProRes 4444 alpha clips, one per element, to test your editor, plus two finished Shorts end-card MP4s and a transparent Shorts card still |
 | `fonts/` | Space Grotesk and Space Mono Bold, to match the text if you add your own in the editor |
 | `src/` | The source for the tool, in readable pieces |
 | `build.py` | Rebuilds the single file from `src/` |
