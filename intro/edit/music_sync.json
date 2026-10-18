@@ -1,0 +1,9 @@
+{
+ "source": "music_source.mp4",
+ "step": 0.11164,
+ "g0": 0.0622,
+ "bpm": 134.36,
+ "drop_step": 8,
+ "phrase_end_step": 72,
+ "note": "step n happens at g0 + n*step; step 0 is the first hit of the opening roll, step 8 the drop"
+}
